@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import ForceGraph3D from 'react-force-graph-3d'
 import { getPartConfig, getMdBasePath, TODAS_KEY } from '../data/partsConfig'
+import { useGraphControls, getContrastBorderClass, getContrastTextClasses } from '../context/GraphControlsContext'
 import fallbackParte1 from '../data/parte1GraphData'
 import fallbackParte2 from '../data/parte2GraphData'
 import fallbackParte3 from '../data/parte3GraphData'
@@ -33,14 +34,22 @@ function mdUrlForNode(node, partKey) {
   return base + pathSeg
 }
 
-const NODE_TYPE_LABELS = {
+const NODE_TYPE_LABELS_BASE = {
   definicion: 'Definición',
   axioma: 'Axioma',
   proposicion: 'Proposición',
   demostracion: 'Demostración',
   corolario: 'Corolario',
   escolio: 'Escolio',
-  indice: 'Parte 1',
+  indice: 'Índice',
+}
+
+function getNodeTypeLabels(partKey) {
+  const config = getPartConfig(partKey)
+  return {
+    ...NODE_TYPE_LABELS_BASE,
+    indice: partKey === TODAS_KEY ? 'Parte (índice)' : config.label,
+  }
 }
 
 // Iconos 2D para la leyenda (forma aproximada a la 3D)
@@ -92,8 +101,6 @@ const DEFAULT_NODE_COLORS = {
   escolio: '#0d9488',
   indice: '#475569',
 }
-
-const DEFAULT_GRAPH_BG = '#ffffff'
 
 // Geometrías 3D por tipo (igual que en la leyenda)
 const NODE_GEOMETRIES = {
@@ -192,15 +199,19 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const [linkWidthScale, setLinkWidthScale] = useState(0.8)
   const [linkDistance, setLinkDistance] = useState(50)
   const [chargeStrength, setChargeStrength] = useState(-50)
-  const [showControls, setShowControls] = useState(false)
+  const { showControls, setShowControls, graphBgColor, setGraphBgColor } = useGraphControls()
   const [nodeColors, setNodeColors] = useState(() => ({ ...DEFAULT_NODE_COLORS }))
-  const [graphBgColor, setGraphBgColor] = useState(DEFAULT_GRAPH_BG)
   const [selectedNode, setSelectedNode] = useState(null)
   const [mdContent, setMdContent] = useState('')
   const [mdLoading, setMdLoading] = useState(false)
   const [graphDataReady, setGraphDataReady] = useState(false)
   const [useCustomShapes, setUseCustomShapes] = useState(false)
   const [showNodeLabels, setShowNodeLabels] = useState(true)
+  const [linkColorNormal, setLinkColorNormal] = useState('#646464')
+  const [linkColorHighlight, setLinkColorHighlight] = useState('#3b82f6')
+  const [visibleTypes, setVisibleTypes] = useState(() =>
+    Object.keys(NODE_TYPE_LABELS_BASE).reduce((acc, t) => ({ ...acc, [t]: true }), {})
+  )
 
   // Medir contenedor para dar width/height explícitos al canvas 3D (nunca guardar 0 para no ocultar el grafo al abrir el panel)
   useEffect(() => {
@@ -231,23 +242,39 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     return raw
   }, [])
 
-  // Cargar grafo desde JSON de la parte actual
+  // Cargar grafo desde JSON de la parte actual (ruta con base para que funcione en subrutas)
   useEffect(() => {
     let cancelled = false
     setLoadError(null)
     const fallback = FALLBACK_BY_PART[partKey] || fallbackParte1
-    fetch(partConfig.graphUrl)
+    const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+    const url = `${base}${partConfig.graphUrl.startsWith('/') ? partConfig.graphUrl : '/' + partConfig.graphUrl}`
+    fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(r.statusText)
-        return r.json()
+        return r.text()
       })
-      .then((data) => {
-        if (!cancelled && data?.nodes?.length) setGraphData(enrichDataWithDegree(data))
-        else if (!cancelled) setGraphData(enrichDataWithDegree(fallback))
+      .then((text) => {
+        if (cancelled) return
+        const trimmed = text.trim()
+        if (trimmed.startsWith('<') || !trimmed.startsWith('{')) {
+          // Solo mostrar mensaje de error en Parte 1 (única con JSON); Partes 2-5 y Todas usan fallback siempre
+          if (partKey === 'parte1') setLoadError('Grafo no disponible en el servidor.')
+          setGraphData(enrichDataWithDegree(fallback))
+          return
+        }
+        try {
+          const data = JSON.parse(text)
+          if (data?.nodes?.length) setGraphData(enrichDataWithDegree(data))
+          else setGraphData(enrichDataWithDegree(fallback))
+        } catch {
+          if (partKey === 'parte1') setLoadError('Grafo no disponible en el servidor.')
+          setGraphData(enrichDataWithDegree(fallback))
+        }
       })
       .catch((err) => {
         if (!cancelled) {
-          setLoadError(err.message)
+          if (partKey === 'parte1') setLoadError(err.message || 'Grafo no disponible en el servidor.')
           setGraphData(enrichDataWithDegree(fallback))
         }
       })
@@ -299,6 +326,24 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     })
     return set
   }, [selectedNode, data.links])
+
+  const filteredData = useMemo(() => {
+    if (!data?.nodes?.length) return { nodes: [], links: [] }
+    const visibleIds = new Set(
+      data.nodes.filter((n) => visibleTypes[n.type] !== false).map((n) => n.id)
+    )
+    const nodes = data.nodes.filter((n) => visibleIds.has(n.id))
+    const links = (data.links || []).filter((l) => {
+      const a = l.source?.id ?? l.source
+      const b = l.target?.id ?? l.target
+      return visibleIds.has(a) && visibleIds.has(b)
+    })
+    return { nodes, links }
+  }, [data, visibleTypes])
+
+  const toggleTypeVisibility = useCallback((type) => {
+    setVisibleTypes((prev) => ({ ...prev, [type]: !prev[type] }))
+  }, [])
 
   const getEffectiveNodeColor = useCallback(
     (node) => nodeColors[node.type] ?? node.color ?? '#737373',
@@ -363,16 +408,25 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     [linkWidthScale, selectedNode, relatedNodeIds]
   )
 
+  const hexToRgba = useCallback((hex, a) => {
+    const h = String(hex).replace(/^#/, '')
+    if (h.length !== 6) return `rgba(100,100,100,${a})`
+    const r = parseInt(h.slice(0, 2), 16)
+    const g = parseInt(h.slice(2, 4), 16)
+    const b = parseInt(h.slice(4, 6), 16)
+    return `rgba(${r},${g},${b},${a})`
+  }, [])
+
   const linkColor = useCallback(
     (link) => {
-      const normal = 'rgba(100, 100, 100, 0.35)'
+      const normal = hexToRgba(linkColorNormal, 0.35)
       if (!selectedNode) return normal
       const a = link.source?.id ?? link.source
       const b = link.target?.id ?? link.target
-      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return 'rgba(59, 130, 246, 0.9)'
-      return 'rgba(150, 150, 150, 0.08)'
+      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return hexToRgba(linkColorHighlight, 0.9)
+      return hexToRgba(linkColorNormal, 0.08)
     },
-    [selectedNode, relatedNodeIds]
+    [selectedNode, relatedNodeIds, linkColorNormal, linkColorHighlight, hexToRgba]
   )
 
   const linkVisibility = useCallback(
@@ -405,10 +459,24 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
       })
   }, [selectedNode])
 
+  const panelTextClass = getContrastTextClasses(graphBgColor).text
+  const panelBorderClass = getContrastBorderClass(graphBgColor)
+  const isDarkBg = (() => {
+    const h = String(graphBgColor || '#000000').replace(/^#/, '')
+    if (h.length !== 6) return true
+    const r = parseInt(h.slice(0, 2), 16)
+    const g = parseInt(h.slice(2, 4), 16)
+    const b = parseInt(h.slice(4, 6), 16)
+    return 0.299 * r + 0.587 * g + 0.114 * b < 128
+  })()
+  const panelBorderRClass = isDarkBg ? 'border-r-white/90' : 'border-r-black/90'
+  const panelBorderLClass = isDarkBg ? 'border-l-white/90' : 'border-l-black/90'
+  const panelBorderBClass = isDarkBg ? 'border-b-white/90' : 'border-b-black/90'
+
   return (
     <div
-      className="flex h-full min-h-0 w-full flex-1 overflow-hidden bg-neutral-900"
-      style={{ minHeight: 200, height: '100%' }}
+      className={`flex h-full min-h-0 w-full flex-1 overflow-hidden border-b-2 ${panelBorderBClass}`}
+      style={{ minHeight: 200, height: '100%', backgroundColor: graphBgColor }}
     >
       <NodeContentPanel
         node={selectedNode}
@@ -423,6 +491,10 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             ? nodeColors[selectedNode.type] ?? selectedNode.color ?? '#737373'
             : undefined
         }
+        graphBgColor={graphBgColor}
+        borderClass={panelBorderRClass}
+        borderBottomClass={panelBorderBClass}
+        textClass={panelTextClass}
       />
 
       <div
@@ -431,12 +503,12 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         style={{ backgroundColor: graphBgColor }}
       >
         {loadError && (
-          <p className="absolute left-3 top-3 z-10 text-xs text-neutral-600">
-            Red local: {loadError}. Usando datos de ejemplo.
+          <p className={`absolute left-3 top-3 z-10 text-xs ${panelTextClass}`}>
+            {loadError} Usando datos de ejemplo.
           </p>
         )}
         {hasData && !hasSize && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-600">
+          <div className={`absolute inset-0 z-10 flex items-center justify-center ${panelTextClass}`}>
             Preparando vista 3D…
           </div>
         )}
@@ -446,7 +518,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             ref={graphRef}
             width={Math.max(1, dimensions.width)}
             height={Math.max(1, dimensions.height)}
-            graphData={graphDataReady ? data : { nodes: [], links: [] }}
+            graphData={graphDataReady ? filteredData : { nodes: [], links: [] }}
             nodeLabel={nodeLabel}
             nodeColor={nodeColor}
             nodeVal={(n) => n.val ?? 1}
@@ -472,56 +544,61 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
           />
         )}
         {!hasData && !loadError && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-600">
+          <div className={`absolute inset-0 z-10 flex items-center justify-center ${panelTextClass}`}>
             Cargando red de archivos…
           </div>
         )}
 
-        {/* Leyenda y, al seleccionar, lista de nodos conectados */}
+        {/* Leyenda: clic en tipo enciende/apaga ese grupo (siempre visible; al abrir controles el grafo se reduce y la leyenda queda a la izquierda del panel) */}
         {hasData && (
           <div className="absolute right-3 top-14 z-10 flex max-h-[calc(100vh-5rem)] flex-col gap-2 overflow-hidden">
-            <div className="rounded-lg border border-neutral-300 bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
-              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+            <div
+              className={`rounded-lg border px-3 py-2 ${panelBorderClass}`}
+              style={{ backgroundColor: graphBgColor }}
+            >
+              <div className={`mb-1.5 text-[10px] font-medium uppercase tracking-wider ${getContrastTextClasses(graphBgColor).text}`}>
                 Leyenda · {partConfig.label}
               </div>
-              <div className="flex flex-col gap-1">
-                {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (
-                  <div
-                    key={type}
-                    className="flex items-center gap-2 text-xs text-neutral-700"
-                    style={{ color: nodeColors[type] ?? DEFAULT_NODE_COLORS[type] }}
-                  >
-                    <span className="opacity-90">
-                      {NODE_TYPE_LEGEND_ICONS[type] ?? NODE_TYPE_LEGEND_ICONS.indice}
-                    </span>
-                    <span className="text-neutral-700">{label}</span>
-                  </div>
-                ))}
+              <div className="flex flex-col gap-0.5">
+                {Object.entries(getNodeTypeLabels(partKey)).map(([type, label]) => {
+                  const isVisible = visibleTypes[type] !== false
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => toggleTypeVisibility(type)}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-left text-xs opacity-90 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-inset"
+                      style={{ color: isVisible ? (nodeColors[type] ?? DEFAULT_NODE_COLORS[type]) : undefined }}
+                      title={isVisible ? `Ocultar ${label}` : `Mostrar ${label}`}
+                    >
+                      <span className={isVisible ? 'opacity-90' : 'opacity-40'}>
+                        {NODE_TYPE_LEGEND_ICONS[type] ?? NODE_TYPE_LEGEND_ICONS.indice}
+                      </span>
+                      <span className={panelTextClass}>{label}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
         )}
+      </div>
 
-        <button
-          type="button"
-          onClick={() => setShowControls((v) => !v)}
-          className="absolute top-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-lg bg-white/95 text-neutral-600 shadow-lg backdrop-blur hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-400"
-          title="Controles del grafo"
-          aria-label="Controles del grafo"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-          </svg>
-        </button>
-
+      {/* Panel derecho de controles: compacto, todo visible sin scroll */}
+      <div
+        className={`flex h-full shrink-0 flex-col overflow-hidden border-l-2 ${panelBorderLClass} shadow-xl transition-[width] duration-300 ease-out ${
+          showControls ? 'w-[min(280px,88vw)]' : 'w-0 border-l-0'
+        }`}
+        style={{ backgroundColor: graphBgColor }}
+      >
         {showControls && (
-          <div className="absolute top-14 right-3 z-10 w-64 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-neutral-300 bg-white/98 p-4 shadow-xl backdrop-blur">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-neutral-800">Controles 3D</span>
+          <>
+            <div className={`flex shrink-0 items-center justify-between gap-1 border-b-2 px-2 py-1.5 ${panelBorderBClass}`}>
+              <span className={`text-[11px] font-medium ${getContrastTextClasses(graphBgColor).active}`}>Controles 3D</span>
               <button
                 type="button"
                 onClick={() => setShowControls(false)}
-                className="text-neutral-500 hover:text-neutral-900"
+                className={`rounded p-0.5 opacity-70 hover:opacity-100 ${panelTextClass}`}
                 aria-label="Cerrar"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,18 +606,18 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 </svg>
               </button>
             </div>
-            <div className="space-y-4">
-              <label className="flex cursor-pointer items-center gap-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="checkbox"
                   checked={showNodeLabels}
                   onChange={(e) => setShowNodeLabels(e.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-400 accent-neutral-500"
+                  className="h-3 w-3 rounded border-neutral-400 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-600">Ver texto de nodos (al pasar ratón)</span>
+                <span className={`text-[10px] ${panelTextClass}`}>Texto en nodos</span>
               </label>
-              <label className="block">
-                <span className="block text-xs font-medium text-neutral-600">Tamaño de nodos</span>
+              <div className="flex items-center gap-2">
+                <span className={`shrink-0 text-[10px] ${panelTextClass}`}>Nodos</span>
                 <input
                   type="range"
                   min={0.5}
@@ -548,42 +625,61 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   step={0.25}
                   value={nodeRelSize}
                   onChange={(e) => setNodeRelSize(Number(e.target.value))}
-                  className="mt-1 h-2 w-full accent-neutral-500"
+                  className="h-1.5 flex-1 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-500">{nodeRelSize}</span>
-              </label>
+                <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{nodeRelSize}</span>
+              </div>
               <div>
-                <span className="mb-2 block text-xs font-medium text-neutral-600">Colores por tipo de nodo</span>
-                <div className="space-y-1.5">
-                  {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (
-                    <div key={type} className="flex items-center gap-2">
+                <span className={`mb-0.5 block text-[10px] font-medium ${panelTextClass}`}>Colores tipo</span>
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                  {Object.entries(getNodeTypeLabels(partKey)).map(([type, label]) => (
+                    <div key={type} className="flex items-center gap-1">
                       <input
                         type="color"
                         value={nodeColors[type] ?? DEFAULT_NODE_COLORS[type]}
                         onChange={(e) => setNodeColorByType(type, e.target.value)}
-                        className="h-7 w-9 cursor-pointer rounded border border-neutral-400 bg-transparent"
+                        className="h-5 w-6 cursor-pointer rounded border border-neutral-400 bg-transparent"
                         title={label}
                       />
-                      <span className="truncate text-xs text-neutral-600">{label}</span>
+                      <span className={`truncate text-[9px] ${panelTextClass}`}>{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div>
-                <span className="mb-1.5 block text-xs font-medium text-neutral-600">Fondo del espacio</span>
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-3 gap-1">
+                <div className="flex items-center gap-1">
                   <input
                     type="color"
                     value={graphBgColor}
                     onChange={(e) => setGraphBgColor(e.target.value)}
-                    className="h-7 w-9 cursor-pointer rounded border border-neutral-400 bg-transparent"
-                    title="Fondo 3D"
+                    className="h-5 w-6 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
+                    title="Fondo"
                   />
-                  <span className="text-xs text-neutral-500">{'#' + (graphBgColor || '').replace(/^#/, '')}</span>
+                  <span className={`truncate text-[9px] ${panelTextClass}`}>Fondo</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="color"
+                    value={linkColorNormal}
+                    onChange={(e) => setLinkColorNormal(e.target.value)}
+                    className="h-5 w-6 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
+                    title="Enlaces"
+                  />
+                  <span className={`truncate text-[9px] ${panelTextClass}`}>Enlaces</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="color"
+                    value={linkColorHighlight}
+                    onChange={(e) => setLinkColorHighlight(e.target.value)}
+                    className="h-5 w-6 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
+                    title="Enlaces (sel.)"
+                  />
+                  <span className={`truncate text-[9px] ${panelTextClass}`}>Sel.</span>
                 </div>
               </div>
-              <label className="block">
-                <span className="block text-xs text-neutral-600">Grosor de enlaces</span>
+              <div className="flex items-center gap-1">
+                <span className={`w-14 shrink-0 text-[10px] ${panelTextClass}`}>Grosor</span>
                 <input
                   type="range"
                   min={0}
@@ -591,12 +687,12 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   step={0.2}
                   value={linkWidthScale}
                   onChange={(e) => setLinkWidthScale(Number(e.target.value))}
-                  className="mt-1 h-2 w-full accent-neutral-500"
+                  className="h-1.5 flex-1 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-500">{linkWidthScale}</span>
-              </label>
-              <label className="block">
-                <span className="block text-xs text-neutral-600">Distancia de enlace</span>
+                <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{linkWidthScale}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className={`w-14 shrink-0 text-[10px] ${panelTextClass}`}>Distancia</span>
                 <input
                   type="range"
                   min={20}
@@ -604,12 +700,12 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   step={5}
                   value={linkDistance}
                   onChange={(e) => setLinkDistance(Number(e.target.value))}
-                  className="mt-1 h-2 w-full accent-neutral-500"
+                  className="h-1.5 flex-1 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-500">{linkDistance}</span>
-              </label>
-              <label className="block">
-                <span className="block text-xs text-neutral-600">Repulsión</span>
+                <span className={`w-6 text-right text-[10px] ${panelTextClass}`}>{linkDistance}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className={`w-14 shrink-0 text-[10px] ${panelTextClass}`}>Repulsión</span>
                 <input
                   type="range"
                   min={-120}
@@ -617,15 +713,15 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   step={5}
                   value={chargeStrength}
                   onChange={(e) => setChargeStrength(Number(e.target.value))}
-                  className="mt-1 h-2 w-full accent-neutral-500"
+                  className="h-1.5 flex-1 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-500">{chargeStrength}</span>
-              </label>
+                <span className={`w-6 text-right text-[10px] ${panelTextClass}`}>{chargeStrength}</span>
+              </div>
             </div>
-            <p className="mt-3 text-[10px] text-neutral-500">
-              Clic en nodo abre el .md a la izquierda. Arrastra para rotar la vista 3D.
+            <p className={`shrink-0 px-2 pb-2 pt-0.5 text-[9px] opacity-80 ${panelTextClass}`}>
+              Clic en nodo → .md a la izq. Arrastra para rotar.
             </p>
-          </div>
+          </>
         )}
       </div>
     </div>

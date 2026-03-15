@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "postinstall": "node scripts/patch-three-forcegraph.cjs",
-    "patch-graph": "node scripts/patch-three-forcegraph.cjs"
+    "patch-graph": "node scripts/patch-three-forcegraph.cjs",
+    "generate-part-graphs": "node scripts/generate-part-graphs.mjs"
   },
   "dependencies": {
     "react": "^19.2.4",

@@ -4,7 +4,7 @@ export default function About() {
   return (
     <main className="page about w-full flex-1 px-4 py-8">
       <h1 className="page-title mb-4 text-2xl font-semibold text-neutral-800">
-        About
+        Info
       </h1>
 
       <div className="about-description mb-8 max-w-2xl space-y-4 text-neutral-600">

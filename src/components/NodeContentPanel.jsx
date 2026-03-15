@@ -56,6 +56,10 @@ function contentWithClickableWikiLinks(rawContent, graphNodes) {
  * @param {function()} props.onClose - Callback al cerrar el panel
  * @param {boolean} [props.open] - Si el panel debe mostrarse (ancho > 0)
  * @param {string} [props.accentColor] - Color del nodo (hex) para la barra superior del panel
+ * @param {string} [props.graphBgColor] - Color de fondo del espacio (compartido)
+ * @param {string} [props.borderClass] - Clase de borde derecho (contorno)
+ * @param {string} [props.borderBottomClass] - Clase de borde inferior (header)
+ * @param {string} [props.textClass] - Clase de texto para legibilidad
  */
 export default function NodeContentPanel({
   node,
@@ -66,14 +70,19 @@ export default function NodeContentPanel({
   onClose,
   open = true,
   accentColor,
+  graphBgColor,
+  borderClass = 'border-r-white/90',
+  borderBottomClass = 'border-b-white/90',
+  textClass = 'text-neutral-200',
 }) {
   const isOpen = open && node != null
 
   return (
     <div
-      className={`flex h-full shrink-0 flex-col border-r border-neutral-700 bg-neutral-800/98 shadow-xl transition-[width] duration-300 ease-out ${
+      className={`flex h-full shrink-0 flex-col border-r-2 ${borderClass} shadow-xl transition-[width] duration-300 ease-out ${
         isOpen ? 'w-[min(420px,90vw)]' : 'w-0 overflow-hidden border-r-0'
       }`}
+      style={{ backgroundColor: graphBgColor ?? undefined }}
     >
       {node && (
         <>
@@ -86,20 +95,20 @@ export default function NodeContentPanel({
             />
           )}
           <div
-            className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-700 px-4 py-2"
+            className={`flex shrink-0 items-center justify-between gap-2 border-b-2 px-4 py-2 ${borderBottomClass}`}
             style={
               accentColor
                 ? { borderTop: `1px solid ${accentColor}40`, backgroundColor: `${accentColor}12` }
                 : undefined
             }
           >
-            <h3 className="truncate text-xs font-medium text-neutral-200">
+            <h3 className={`truncate text-xs font-medium ${textClass}`}>
               {node.name}
             </h3>
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-700 hover:text-white"
+              className={`shrink-0 rounded p-1 opacity-70 hover:opacity-100 ${textClass}`}
               aria-label="Cerrar panel"
             >
               <svg
@@ -117,11 +126,11 @@ export default function NodeContentPanel({
               </svg>
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div className={`min-h-0 flex-1 overflow-y-auto px-4 py-3 ${textClass}`}>
             {loading ? (
-              <p className="text-neutral-400">Cargando…</p>
+              <p className="opacity-70">Cargando…</p>
             ) : (
-              <article className="MarkdownPanel text-sm text-neutral-300 [&_h1]:mb-1.5 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-neutral-100 [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-neutral-100 [&_p]:mb-1.5 [&_p]:text-xs [&_ul]:list-inside [&_ul]:list-disc [&_ul]:mb-1.5 [&_ul]:text-xs [&_ol]:list-inside [&_ol]:list-decimal [&_ol]:mb-1.5 [&_ol]:text-xs [&_a]:text-neutral-200 [&_a]:underline [&_a]:cursor-pointer [&_strong]:text-neutral-100 [&_hr]:my-2 [&_hr]:border-neutral-600">
+              <article className={`MarkdownPanel text-sm opacity-90 [&_h1]:mb-1.5 [&_h1]:text-sm [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_p]:mb-1.5 [&_p]:text-xs [&_ul]:list-inside [&_ul]:list-disc [&_ul]:mb-1.5 [&_ul]:text-xs [&_ol]:list-inside [&_ol]:list-decimal [&_ol]:mb-1.5 [&_ol]:text-xs [&_a]:underline [&_a]:cursor-pointer [&_strong]:font-semibold [&_hr]:my-2 [&_hr]:border-current [&_hr]:opacity-50`}>
                 <ReactMarkdown
                   components={{
                     h1: ({ children, ...props }) => (

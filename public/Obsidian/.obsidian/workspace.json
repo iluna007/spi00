@@ -188,8 +188,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "30afb6b3d24a426b",
+  "active": "37f3921bc7294085",
   "lastOpenFiles": [
+    "Untitled 1.canvas",
+    "Untitled.canvas",
     "spi1/Parte 5/Escolios/Escolio 1 - Proposicion 6.md",
     "spi1/Parte 5/Escolios/Escolio 1 - Proposicion 8.md",
     "spi1/Parte 5/Escolios/Escolio 1 - Proposicion 41.md",
@@ -216,7 +218,6 @@
     "spi1/Parte 5/Corolarios/Corolario 1 - Proposicion 18.md",
     "spi1/Parte 5/Corolarios/Corolario 1 - Proposicion 33.md",
     "spi1/Parte 5/Corolarios/Corolario 1 - Proposicion 3.md",
-    "spi1/Parte 5/Corolarios/Corolario 1 - Proposicion 17.md",
     "spi1/Parte 5/Corolarios",
     "spi1/Parte 5/Demostraciones",
     "spi1/Parte 5/Proposiciones",
@@ -225,8 +226,6 @@
     "spi1/Parte 4/Corolarios",
     "spi1/Parte 4/Demostraciones",
     "spi1/Parte 4/Proposiciones",
-    "spi1/Parte 4/Axiomas",
-    "Untitled 1.canvas",
-    "Untitled.canvas"
+    "spi1/Parte 4/Axiomas"
   ]
 }
