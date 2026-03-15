@@ -74,7 +74,11 @@ export default function About() {
         </h2>
         <div className="border border-neutral-200 rounded overflow-hidden divide-y divide-neutral-200">
           {HIERARCHY_ITEMS.map(({ label, color, role, note }) => (
-            <div key={label} className="flex gap-3 p-4 hover:bg-neutral-50 transition-colors sm:grid sm:grid-cols-[140px_1fr]">
+            <div
+              key={label}
+              className="flex gap-3 p-4 hover:bg-neutral-50 transition-colors sm:grid sm:grid-cols-[140px_1fr] border-l-4"
+              style={{ borderLeftColor: color }}
+            >
               <div className="flex items-start gap-2 shrink-0 sm:border-r sm:border-neutral-200 sm:pr-3">
                 <span className="mt-0.5 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
