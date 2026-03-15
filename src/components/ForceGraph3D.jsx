@@ -1,16 +1,33 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import ForceGraph3D from 'react-force-graph-3d'
-import fallbackData from '../data/parte1GraphData'
+import { getPartConfig, getMdBasePath, TODAS_KEY } from '../data/partsConfig'
+import fallbackParte1 from '../data/parte1GraphData'
+import fallbackParte2 from '../data/parte2GraphData'
+import fallbackParte3 from '../data/parte3GraphData'
+import fallbackParte4 from '../data/parte4GraphData'
+import fallbackParte5 from '../data/parte5GraphData'
+import fallbackTodas from '../data/todasGraphData'
 import NodeContentPanel from './NodeContentPanel'
 
-function mdUrlForNode(node) {
-  const base = '/Obsidian/spi1/' + encodeURIComponent('Parte 1') + '/'
+const FALLBACK_BY_PART = {
+  parte1: fallbackParte1,
+  parte2: fallbackParte2,
+  parte3: fallbackParte3,
+  parte4: fallbackParte4,
+  parte5: fallbackParte5,
+  [TODAS_KEY]: fallbackTodas,
+}
+
+function mdUrlForNode(node, partKey) {
+  const folderName = node.folderName || (partKey === TODAS_KEY ? null : getPartConfig(partKey).folderName)
+  const base = getMdBasePath(partKey, folderName)
+  const rawId = node.rawId || node.id
   const pathSeg = node.path
     ? node.path.split('/').map(encodeURIComponent).join('/')
     : (() => {
         const folder = { definicion: 'Definiciones', axioma: 'Axiomas', proposicion: 'Proposiciones', demostracion: 'Demostraciones', corolario: 'Corolarios', escolio: 'Escolios' }[node.type]
-        const p = folder ? `${folder}/${node.id}.md` : `${node.id}.md`
+        const p = folder ? `${folder}/${rawId}.md` : `${rawId}.md`
         return p.split('/').map(encodeURIComponent).join('/')
       })()
   return base + pathSeg
@@ -163,9 +180,10 @@ function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighte
   return group
 }
 
-export default function ForceGraph3DScene() {
+export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const containerRef = useRef(null)
   const graphRef = useRef(null)
+  const partConfig = getPartConfig(partKey)
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [graphData, setGraphData] = useState(null)
@@ -213,27 +231,28 @@ export default function ForceGraph3DScene() {
     return raw
   }, [])
 
-  // Cargar grafo desde JSON (todos los .md de Parte 1)
+  // Cargar grafo desde JSON de la parte actual
   useEffect(() => {
     let cancelled = false
     setLoadError(null)
-    fetch('/parte1-graph.json')
+    const fallback = FALLBACK_BY_PART[partKey] || fallbackParte1
+    fetch(partConfig.graphUrl)
       .then((r) => {
         if (!r.ok) throw new Error(r.statusText)
         return r.json()
       })
       .then((data) => {
         if (!cancelled && data?.nodes?.length) setGraphData(enrichDataWithDegree(data))
-        else if (!cancelled) setGraphData(enrichDataWithDegree(fallbackData))
+        else if (!cancelled) setGraphData(enrichDataWithDegree(fallback))
       })
       .catch((err) => {
         if (!cancelled) {
           setLoadError(err.message)
-          setGraphData(enrichDataWithDegree(fallbackData))
+          setGraphData(enrichDataWithDegree(fallback))
         }
       })
     return () => { cancelled = true }
-  }, [enrichDataWithDegree])
+  }, [partKey, partConfig.graphUrl, enrichDataWithDegree])
 
   const data = graphData || { nodes: [], links: [] }
   const hasData = data.nodes.length > 0
@@ -373,7 +392,7 @@ export default function ForceGraph3DScene() {
       return
     }
     setMdLoading(true)
-    const url = mdUrlForNode(selectedNode)
+    const url = mdUrlForNode(selectedNode, partKey)
     fetch(url)
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.statusText))))
       .then((text) => {
@@ -463,7 +482,7 @@ export default function ForceGraph3DScene() {
           <div className="absolute right-3 top-14 z-10 flex max-h-[calc(100vh-5rem)] flex-col gap-2 overflow-hidden">
             <div className="rounded-lg border border-neutral-300 bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
               <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
-                Leyenda
+                Leyenda · {partConfig.label}
               </div>
               <div className="flex flex-col gap-1">
                 {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (

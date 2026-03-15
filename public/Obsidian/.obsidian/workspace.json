@@ -4,33 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "345d239829940026",
+        "id": "47ee723d68caa608",
         "type": "tabs",
-        "dimension": 34.89847715736041,
         "children": [
           {
-            "id": "b24b3b487d9baab6",
+            "id": "2c0954d4443cf8fb",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "spi1/Parte 1/Parte 1 - De Dios.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "Parte 1 - De Dios"
+              "title": "New tab"
             }
-          }
-        ]
-      },
-      {
-        "id": "3cf1402cbf7f42ff",
-        "type": "tabs",
-        "dimension": 65.1015228426396,
-        "children": [
+          },
           {
-            "id": "83336732904f15e9",
+            "id": "ea3b8d64988f513e",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -39,7 +27,8 @@
               "title": "Graph view"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -199,40 +188,44 @@
       "bases:Create new base": false
     }
   },
-  "active": "83336732904f15e9",
+  "active": "ea3b8d64988f513e",
   "lastOpenFiles": [
-    "spi1/Parte 1/Parte 1 - De Dios.md",
-    "spi1/Parte 1/Escolio 1 - Proposicion 29.md",
-    "spi1/Parte 1/Corolario 1 - Proposicion 13.md",
-    "spi1/Parte 1/Corolario 2 - Proposicion 32.md",
-    "spi1/Parte 1/Escolios/Escolio 3 - Proposicion 33.md",
-    "spi1/Parte 1/Escolios/Escolio 2 - Proposicion 8.md",
-    "spi1/Parte 1/Escolios/Escolio 2 - Proposicion 33.md",
-    "spi1/Parte 1/Escolios/Escolio 1 - Proposicion 8.md",
-    "spi1/Parte 1/Escolios/Escolio 1 - Proposicion 33.md",
-    "spi1/Parte 1/Escolios/Escolio 1 - Proposicion 31.md",
-    "spi1/Parte 1/Corolarios/Corolario 1 - Proposicion 6.md",
-    "spi1/Parte 1/Corolarios/Corolario 1 - Proposicion 32.md",
-    "spi1/Parte 1/Corolarios/Corolario 1 - Proposicion 25.md",
-    "spi1/Parte 1/Corolarios/Corolario 1 - Proposicion 24.md",
-    "spi1/Parte 1/Corolarios/Corolario 1 - Proposicion 20.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 32.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 31.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 30.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 3.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 29.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 28.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 15.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 14.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 13.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 12.md",
-    "spi1/Parte 1/Demostraciones/Demostracion 1 - Proposicion 11.md",
-    "spi1/Parte 1/Escolios",
-    "spi1/Parte 1/Corolarios",
-    "spi1/Parte 1/Demostraciones",
-    "spi1/Parte 1/Proposiciones",
-    "spi1/Parte 1/Definiciones",
-    "spi1/Parte 1/Axiomas",
+    "spi1/Parte 4/Parte 4 - De la Servidumbre.md",
+    "spi1/Parte 4/Escolios/Escolio 2 - Proposicion 43.md",
+    "spi1/Parte 4/Escolios/Escolio 2 - Proposicion 58.md",
+    "spi1/Parte 4/Escolios/Escolio 2 - Proposicion 35.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 8.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 7.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 67.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 66.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 65.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 64.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 63.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 60.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 62.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 58.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 57.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 56.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 55.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 54.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 53.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 52.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 51.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 48.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 49.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 45.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 47.md",
+    "spi1/Parte 4/Escolios/Escolio 1 - Proposicion 44.md",
+    "spi1/Parte 4/Escolios",
+    "spi1/Parte 4/Corolarios",
+    "spi1/Parte 4/Demostraciones",
+    "spi1/Parte 4/Proposiciones",
+    "spi1/Parte 4/Axiomas",
+    "spi1/Parte 4/Definiciones",
+    "spi1/Parte 3/Escolios",
+    "spi1/Parte 3/Corolarios",
+    "spi1/Parte 3/Demostraciones",
+    "spi1/Parte 3/Proposiciones",
     "Untitled 1.canvas",
     "Untitled.canvas"
   ]
