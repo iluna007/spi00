@@ -11,39 +11,74 @@
       "query": "tag:#axioma  ",
       "color": {
         "a": 1,
-        "rgb": 3792382
+        "rgb": 14745855
       }
     },
     {
       "query": "tag:#definicion  ",
       "color": {
         "a": 1,
-        "rgb": 16259323
+        "rgb": 7536895
       }
     },
     {
       "query": "tag:#proposicion  ",
       "color": {
         "a": 1,
-        "rgb": 16753930
+        "rgb": 668671
       }
     },
     {
       "query": "tag:#demostracion",
       "color": {
         "a": 1,
-        "rgb": 5431378
+        "rgb": 5431511
       }
     },
     {
       "query": "tag:#corolario  ",
       "color": {
         "a": 1,
-        "rgb": 16768256
+        "rgb": 6749952
       }
     },
     {
       "query": "tag:#escolio  ",
+      "color": {
+        "a": 1,
+        "rgb": 16768256
+      }
+    },
+    {
+      "query": "tag:#parte1  ",
+      "color": {
+        "a": 1,
+        "rgb": 16711680
+      }
+    },
+    {
+      "query": "tag:#parte2  ",
+      "color": {
+        "a": 1,
+        "rgb": 16711680
+      }
+    },
+    {
+      "query": "tag:#parte3  ",
+      "color": {
+        "a": 1,
+        "rgb": 16711680
+      }
+    },
+    {
+      "query": "tag:#parte4 ",
+      "color": {
+        "a": 1,
+        "rgb": 16711680
+      }
+    },
+    {
+      "query": "tag:#parte5  ",
       "color": {
         "a": 1,
         "rgb": 16711680
@@ -56,10 +91,10 @@
   "nodeSizeMultiplier": 3.03489583333333,
   "lineSizeMultiplier": 1.80989583333333,
   "collapse-forces": false,
-  "centerStrength": 0,
+  "centerStrength": 0.145833333333333,
   "repelStrength": 20,
-  "linkStrength": 0,
-  "linkDistance": 500,
-  "scale": 0.0078125,
+  "linkStrength": 0.494791666666667,
+  "linkDistance": 30,
+  "scale": 0.0423159026897591,
   "close": false
 }
