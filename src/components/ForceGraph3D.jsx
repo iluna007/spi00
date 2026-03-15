@@ -10,6 +10,7 @@ import fallbackParte4 from '../data/parte4GraphData'
 import fallbackParte5 from '../data/parte5GraphData'
 import fallbackTodas from '../data/todasGraphData'
 import NodeContentPanel from './NodeContentPanel'
+import { NODE_TYPE_LABELS_BASE, DEFAULT_NODE_COLORS, NODE_GEOMETRIES, getMaterial, getLabelTexture } from './graphConstants'
 
 const FALLBACK_BY_PART = {
   parte1: fallbackParte1,
@@ -32,16 +33,6 @@ function mdUrlForNode(node, partKey) {
         return p.split('/').map(encodeURIComponent).join('/')
       })()
   return base + pathSeg
-}
-
-const NODE_TYPE_LABELS_BASE = {
-  definicion: 'Definición',
-  axioma: 'Axioma',
-  proposicion: 'Proposición',
-  demostracion: 'Demostración',
-  corolario: 'Corolario',
-  escolio: 'Escolio',
-  indice: 'Índice',
 }
 
 function getNodeTypeLabels(partKey) {
@@ -92,75 +83,9 @@ const NODE_TYPE_LEGEND_ICONS = {
   ),
 }
 
-const DEFAULT_NODE_COLORS = {
-  definicion: '#2563eb',
-  axioma: '#059669',
-  proposicion: '#d97706',
-  demostracion: '#dc2626',
-  corolario: '#7c3aed',
-  escolio: '#0d9488',
-  indice: '#475569',
-}
-
-// Geometrías 3D por tipo (igual que en la leyenda)
-const NODE_GEOMETRIES = {
-  definicion: new THREE.BoxGeometry(1, 1, 1),
-  axioma: new THREE.OctahedronGeometry(0.7, 0),
-  proposicion: new THREE.IcosahedronGeometry(0.65, 0),
-  demostracion: new THREE.CylinderGeometry(0.5, 0.5, 1, 6),
-  corolario: new THREE.ConeGeometry(0.6, 1, 6),
-  escolio: new THREE.TorusGeometry(0.5, 0.25, 8, 16),
-  indice: new THREE.SphereGeometry(0.6, 12, 12),
-}
-
-const materialCache = new Map()
-function getMaterial(color, opacity = 1, isHighlighted = false) {
-  const key = `${color}-${opacity}-${isHighlighted}`
-  if (!materialCache.has(key)) {
-    const mat = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(color),
-      transparent: opacity < 1,
-      opacity,
-      emissive: isHighlighted ? new THREE.Color(color) : undefined,
-      emissiveIntensity: isHighlighted ? 0.35 : 0,
-    })
-    materialCache.set(key, mat)
-  }
-  return materialCache.get(key)
-}
-
 /** Crea la malla del nodo; getColor, getOpacity y getIsHighlighted dependen de la selección (puede ser gris si está “apagado”) */
 /** Crea una textura de canvas con el texto del nodo para usar en Sprite */
-function makeLabelTexture(text) {
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-  const font = '14px system-ui, sans-serif'
-  ctx.font = font
-  const m = ctx.measureText(text)
-  const w = Math.ceil(Math.max(m.width + 16, 1))
-  const h = 24
-  canvas.width = w
-  canvas.height = h
-  ctx.font = font
-  ctx.fillStyle = '#1f2937'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, w / 2, h / 2)
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.needsUpdate = true
-  return tex
-}
 
-const labelTextureCache = new Map()
-function getLabelTexture(name) {
-  const key = name || ''
-  if (!labelTextureCache.has(key)) {
-    labelTextureCache.set(key, makeLabelTexture(key))
-  }
-  return labelTextureCache.get(key)
-}
-
-/** Crea la malla del nodo; opcionalmente con etiqueta de nombre (cuando showLabel). */
 function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighted, showLabel) {
   const type = node.type || 'indice'
   const geom = NODE_GEOMETRIES[type] || NODE_GEOMETRIES.indice
@@ -191,6 +116,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const containerRef = useRef(null)
   const graphRef = useRef(null)
   const partConfig = getPartConfig(partKey)
+  const nodeTypeLabels = useMemo(() => getNodeTypeLabels(partKey), [partKey])
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [graphData, setGraphData] = useState(null)
@@ -457,7 +383,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         setMdContent('*No se pudo cargar el archivo.*')
         setMdLoading(false)
       })
-  }, [selectedNode])
+  }, [selectedNode, partKey])
 
   const panelTextClass = getContrastTextClasses(graphBgColor).text
   const panelBorderClass = getContrastBorderClass(graphBgColor)
@@ -475,7 +401,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
 
   return (
     <div
-      className={`flex h-full min-h-0 w-full flex-1 overflow-hidden border-b-2 ${panelBorderBClass}`}
+      className={`relative flex h-full min-h-0 w-full flex-1 overflow-hidden border-b-2 ${panelBorderBClass}`}
       style={{ minHeight: 200, height: '100%', backgroundColor: graphBgColor }}
     >
       <NodeContentPanel
@@ -549,25 +475,25 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
           </div>
         )}
 
-        {/* Leyenda: clic en tipo enciende/apaga ese grupo (siempre visible; al abrir controles el grafo se reduce y la leyenda queda a la izquierda del panel) */}
+        {/* Leyenda: en móvil abajo a la izquierda para no tapar; en md+ arriba derecha */}
         {hasData && (
-          <div className="absolute right-3 top-14 z-10 flex max-h-[calc(100vh-5rem)] flex-col gap-2 overflow-hidden">
+          <div className="absolute bottom-3 left-3 z-10 flex max-h-[40vh] flex-col overflow-auto sm:bottom-auto sm:left-auto sm:right-3 sm:top-14 sm:max-h-[calc(100vh-5rem)] md:max-h-[calc(100vh-5rem)]">
             <div
-              className={`rounded-lg border px-3 py-2 ${panelBorderClass}`}
+              className={`rounded-lg border px-2 py-1.5 sm:px-3 sm:py-2 ${panelBorderClass}`}
               style={{ backgroundColor: graphBgColor }}
             >
-              <div className={`mb-1.5 text-[10px] font-medium uppercase tracking-wider ${getContrastTextClasses(graphBgColor).text}`}>
+              <div className={`mb-1 text-[10px] font-medium uppercase tracking-wider sm:mb-1.5 ${getContrastTextClasses(graphBgColor).text}`}>
                 Leyenda · {partConfig.label}
               </div>
               <div className="flex flex-col gap-0.5">
-                {Object.entries(getNodeTypeLabels(partKey)).map(([type, label]) => {
+                {Object.entries(nodeTypeLabels).map(([type, label]) => {
                   const isVisible = visibleTypes[type] !== false
                   return (
                     <button
                       key={type}
                       type="button"
                       onClick={() => toggleTypeVisibility(type)}
-                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-left text-xs opacity-90 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-inset"
+                      className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs opacity-90 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-inset sm:min-h-0 sm:px-1 sm:py-1"
                       style={{ color: isVisible ? (nodeColors[type] ?? DEFAULT_NODE_COLORS[type]) : undefined }}
                       title={isVisible ? `Ocultar ${label}` : `Mostrar ${label}`}
                     >
@@ -584,21 +510,21 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         )}
       </div>
 
-      {/* Panel derecho de controles: compacto, todo visible sin scroll */}
+      {/* Panel derecho: en móvil overlay; en md+ en flujo */}
       <div
-        className={`flex h-full shrink-0 flex-col overflow-hidden border-l-2 ${panelBorderLClass} shadow-xl transition-[width] duration-300 ease-out ${
-          showControls ? 'w-[min(280px,88vw)]' : 'w-0 border-l-0'
+        className={`absolute right-0 top-0 z-20 flex h-full shrink-0 flex-col overflow-hidden border-l-2 ${panelBorderLClass} shadow-xl transition-[width] duration-300 ease-out md:relative md:z-auto ${
+          showControls ? 'w-[min(280px,92vw)]' : 'w-0 border-l-0'
         }`}
         style={{ backgroundColor: graphBgColor }}
       >
         {showControls && (
           <>
-            <div className={`flex shrink-0 items-center justify-between gap-1 border-b-2 px-2 py-1.5 ${panelBorderBClass}`}>
+            <div className={`flex shrink-0 items-center justify-between gap-1 border-b-2 px-2 py-2 sm:py-1.5 ${panelBorderBClass}`}>
               <span className={`text-[11px] font-medium ${getContrastTextClasses(graphBgColor).active}`}>Controles 3D</span>
               <button
                 type="button"
                 onClick={() => setShowControls(false)}
-                className={`rounded p-0.5 opacity-70 hover:opacity-100 ${panelTextClass}`}
+                className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded p-1 opacity-70 hover:opacity-100 sm:min-h-0 sm:min-w-0 sm:p-0.5 ${panelTextClass}`}
                 aria-label="Cerrar"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -632,7 +558,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
               <div>
                 <span className={`mb-0.5 block text-[10px] font-medium ${panelTextClass}`}>Colores tipo</span>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                  {Object.entries(getNodeTypeLabels(partKey)).map(([type, label]) => (
+                  {Object.entries(nodeTypeLabels).map(([type, label]) => (
                     <div key={type} className="flex items-center gap-1">
                       <input
                         type="color"
@@ -718,9 +644,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 <span className={`w-6 text-right text-[10px] ${panelTextClass}`}>{chargeStrength}</span>
               </div>
             </div>
-            <p className={`shrink-0 px-2 pb-2 pt-0.5 text-[9px] opacity-80 ${panelTextClass}`}>
-              Clic en nodo → .md a la izq. Arrastra para rotar.
-            </p>
+            
           </>
         )}
       </div>

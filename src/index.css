@@ -37,9 +37,17 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
 
-  @media (max-width: 1024px) {
+@media (max-width: 1024px) {
+  :root {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    font-size: 15px;
   }
 }
 
@@ -63,12 +71,21 @@
   }
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 html,
 body {
   margin: 0;
   width: 100%;
   min-height: 100%;
   font-family: var(--font-app);
+  overflow-x: hidden;
+}
+
+body {
+  overscroll-behavior-x: none;
 }
 
 #root {

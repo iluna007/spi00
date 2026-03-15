@@ -1,3 +1,4 @@
+import { useMemo, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 
 /**
@@ -61,7 +62,7 @@ function contentWithClickableWikiLinks(rawContent, graphNodes) {
  * @param {string} [props.borderBottomClass] - Clase de borde inferior (header)
  * @param {string} [props.textClass] - Clase de texto para legibilidad
  */
-export default function NodeContentPanel({
+function NodeContentPanel({
   node,
   content,
   loading,
@@ -76,11 +77,15 @@ export default function NodeContentPanel({
   textClass = 'text-neutral-200',
 }) {
   const isOpen = open && node != null
+  const processedContent = useMemo(
+    () => contentWithClickableWikiLinks(content, graphNodes),
+    [content, graphNodes]
+  )
 
   return (
     <div
-      className={`flex h-full shrink-0 flex-col border-r-2 ${borderClass} shadow-xl transition-[width] duration-300 ease-out ${
-        isOpen ? 'w-[min(420px,90vw)]' : 'w-0 overflow-hidden border-r-0'
+      className={`absolute left-0 top-0 z-20 flex h-full shrink-0 flex-col border-r-2 ${borderClass} shadow-xl transition-[width] duration-300 ease-out md:relative md:z-auto ${
+        isOpen ? 'w-[min(420px,92vw)]' : 'w-0 overflow-hidden border-r-0'
       }`}
       style={{ backgroundColor: graphBgColor ?? undefined }}
     >
@@ -165,7 +170,7 @@ export default function NodeContentPanel({
                     },
                   }}
                 >
-                  {contentWithClickableWikiLinks(content, graphNodes)}
+                  {processedContent}
                 </ReactMarkdown>
               </article>
             )}
@@ -175,3 +180,5 @@ export default function NodeContentPanel({
     </div>
   )
 }
+
+export default memo(NodeContentPanel)

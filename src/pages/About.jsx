@@ -2,7 +2,7 @@ const GITHUB_REPO_URL = 'https://github.com/iluna007/spi00'
 
 export default function About() {
   return (
-    <main className="page about w-full flex-1 px-4 py-8">
+    <main className="page about w-full min-h-0 flex-1 px-4 py-6 sm:py-8">
       <h1 className="page-title mb-4 text-2xl font-semibold text-neutral-800">
         Info
       </h1>
