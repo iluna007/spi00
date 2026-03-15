@@ -1,36 +1,8 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import ForceGraph3D from 'react-force-graph-3d'
-import ReactMarkdown from 'react-markdown'
 import fallbackData from '../data/parte1GraphData'
-
-/** Convierte hex a escala de grises (mantiene #rrggbb) */
-function hexToGrayscale(hex) {
-  const h = hex.replace(/^#/, '')
-  if (h.length !== 6) return '#666666'
-  const r = parseInt(h.slice(0, 2), 16)
-  const g = parseInt(h.slice(2, 4), 16)
-  const b = parseInt(h.slice(4, 6), 16)
-  const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
-  const gs = gray.toString(16).padStart(2, '0')
-  return `#${gs}${gs}${gs}`
-}
-
-/** Dado un href de enlace en el markdown, busca un nodo del grafo que coincida (por path/name/id) */
-function findNodeByLinkHref(href, nodes) {
-  if (!href || !nodes?.length) return null
-  try {
-    const decoded = decodeURIComponent(href)
-    const pathPart = decoded.split('/').pop() || decoded
-    const nameWithoutExt = pathPart.replace(/\.md$/i, '').trim()
-    return (
-      nodes.find((n) => n.id === nameWithoutExt || n.name === nameWithoutExt) ||
-      nodes.find((n) => n.path && (n.path.endsWith(pathPart) || n.path.endsWith(nameWithoutExt + '.md')))
-    )
-  } catch {
-    return null
-  }
-}
+import NodeContentPanel from './NodeContentPanel'
 
 function mdUrlForNode(node) {
   const base = '/Obsidian/spi1/' + encodeURIComponent('Parte 1') + '/'
@@ -95,16 +67,16 @@ const NODE_TYPE_LEGEND_ICONS = {
 }
 
 const DEFAULT_NODE_COLORS = {
-  definicion: '#525252',
-  axioma: '#737373',
-  proposicion: '#a3a3a3',
-  demostracion: '#d4d4d4',
-  corolario: '#e5e5e5',
-  escolio: '#fafafa',
-  indice: '#404040',
+  definicion: '#2563eb',
+  axioma: '#059669',
+  proposicion: '#d97706',
+  demostracion: '#dc2626',
+  corolario: '#7c3aed',
+  escolio: '#0d9488',
+  indice: '#475569',
 }
 
-const DEFAULT_GRAPH_BG = '#0a0a0a'
+const DEFAULT_GRAPH_BG = '#ffffff'
 
 // Geometrías 3D por tipo (igual que en la leyenda)
 const NODE_GEOMETRIES = {
@@ -118,30 +90,77 @@ const NODE_GEOMETRIES = {
 }
 
 const materialCache = new Map()
-function getMaterial(color) {
-  if (!materialCache.has(color)) {
-    materialCache.set(
-      color,
-      new THREE.MeshLambertMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: 1,
-      })
-    )
+function getMaterial(color, opacity = 1, isHighlighted = false) {
+  const key = `${color}-${opacity}-${isHighlighted}`
+  if (!materialCache.has(key)) {
+    const mat = new THREE.MeshLambertMaterial({
+      color: new THREE.Color(color),
+      transparent: opacity < 1,
+      opacity,
+      emissive: isHighlighted ? new THREE.Color(color) : undefined,
+      emissiveIntensity: isHighlighted ? 0.35 : 0,
+    })
+    materialCache.set(key, mat)
   }
-  return materialCache.get(color)
+  return materialCache.get(key)
 }
 
-/** getColor(node) debe devolver el hex del nodo (puede ser gris si está “apagado”) */
-function createNodeMesh(node, nodeRelSize, getColor) {
+/** Crea la malla del nodo; getColor, getOpacity y getIsHighlighted dependen de la selección (puede ser gris si está “apagado”) */
+/** Crea una textura de canvas con el texto del nodo para usar en Sprite */
+function makeLabelTexture(text) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  const font = '14px system-ui, sans-serif'
+  ctx.font = font
+  const m = ctx.measureText(text)
+  const w = Math.ceil(Math.max(m.width + 16, 1))
+  const h = 24
+  canvas.width = w
+  canvas.height = h
+  ctx.font = font
+  ctx.fillStyle = '#1f2937'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, w / 2, h / 2)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.needsUpdate = true
+  return tex
+}
+
+const labelTextureCache = new Map()
+function getLabelTexture(name) {
+  const key = name || ''
+  if (!labelTextureCache.has(key)) {
+    labelTextureCache.set(key, makeLabelTexture(key))
+  }
+  return labelTextureCache.get(key)
+}
+
+/** Crea la malla del nodo; opcionalmente con etiqueta de nombre (cuando showLabel). */
+function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighted, showLabel) {
   const type = node.type || 'indice'
   const geom = NODE_GEOMETRIES[type] || NODE_GEOMETRIES.indice
   const color = getColor(node)
-  const mesh = new THREE.Mesh(geom, getMaterial(color))
+  const opacity = getOpacity(node)
+  const isHighlighted = getIsHighlighted(node)
+  const mesh = new THREE.Mesh(geom, getMaterial(color, opacity, isHighlighted))
   const val = node.val ?? 1
   const s = (nodeRelSize || 2) * Math.cbrt(val)
   mesh.scale.set(s, s, s)
-  return mesh
+  if (!showLabel) return mesh
+  const group = new THREE.Group()
+  group.add(mesh)
+  const spriteMat = new THREE.SpriteMaterial({
+    map: getLabelTexture(node.name || node.id),
+    transparent: true,
+    depthWrite: false,
+  })
+  const sprite = new THREE.Sprite(spriteMat)
+  const scale = 5
+  sprite.scale.set(scale, scale * 0.45, 1)
+  sprite.position.y = -s * 1.4 - 1.2
+  group.add(sprite)
+  return group
 }
 
 export default function ForceGraph3DScene() {
@@ -179,6 +198,21 @@ export default function ForceGraph3DScene() {
     return () => ro.disconnect()
   }, [])
 
+  // Asignar val = número de conexiones (grado) para tamaño proporcional
+  const enrichDataWithDegree = useCallback((raw) => {
+    if (!raw?.nodes?.length) return raw
+    const degree = {}
+    raw.nodes.forEach((n) => { degree[n.id] = 0 })
+    ;(raw.links || []).forEach((l) => {
+      const a = l.source?.id ?? l.source
+      const b = l.target?.id ?? l.target
+      degree[a] = (degree[a] || 0) + 1
+      degree[b] = (degree[b] || 0) + 1
+    })
+    raw.nodes.forEach((n) => { n.val = Math.max(1, degree[n.id]) })
+    return raw
+  }, [])
+
   // Cargar grafo desde JSON (todos los .md de Parte 1)
   useEffect(() => {
     let cancelled = false
@@ -189,17 +223,17 @@ export default function ForceGraph3DScene() {
         return r.json()
       })
       .then((data) => {
-        if (!cancelled && data?.nodes?.length) setGraphData(data)
-        else if (!cancelled) setGraphData(fallbackData)
+        if (!cancelled && data?.nodes?.length) setGraphData(enrichDataWithDegree(data))
+        else if (!cancelled) setGraphData(enrichDataWithDegree(fallbackData))
       })
       .catch((err) => {
         if (!cancelled) {
           setLoadError(err.message)
-          setGraphData(fallbackData)
+          setGraphData(enrichDataWithDegree(fallbackData))
         }
       })
     return () => { cancelled = true }
-  }, [])
+  }, [enrichDataWithDegree])
 
   const data = graphData || { nodes: [], links: [] }
   const hasData = data.nodes.length > 0
@@ -234,67 +268,90 @@ export default function ForceGraph3DScene() {
     g.d3ReheatSimulation?.()
   }, [data?.nodes?.length, linkDistance, chargeStrength])
 
-  // Nodos relacionados con el seleccionado (conexión directa o por enlaces)
   const relatedNodeIds = useMemo(() => {
     if (!selectedNode || !data.links?.length) return new Set()
-    const set = new Set([selectedNode.id])
-    let changed = true
-    while (changed) {
-      changed = false
-      data.links.forEach((link) => {
-        const a = link.source?.id ?? link.source
-        const b = link.target?.id ?? link.target
-        if (set.has(a) && !set.has(b)) {
-          set.add(b)
-          changed = true
-        }
-        if (set.has(b) && !set.has(a)) {
-          set.add(a)
-          changed = true
-        }
-      })
-    }
+    const sid = selectedNode.id
+    const set = new Set([sid])
+    data.links.forEach((link) => {
+      const a = link.source?.id ?? link.source
+      const b = link.target?.id ?? link.target
+      if (a === sid) set.add(b)
+      if (b === sid) set.add(a)
+    })
     return set
   }, [selectedNode, data.links])
 
   const getEffectiveNodeColor = useCallback(
-    (node) => {
-      const base = nodeColors[node.type] ?? node.color ?? '#737373'
-      if (!selectedNode) return base
-      if (relatedNodeIds.has(node.id)) return base
-      return hexToGrayscale(base)
-    },
-    [nodeColors, selectedNode, relatedNodeIds]
+    (node) => nodeColors[node.type] ?? node.color ?? '#737373',
+    [nodeColors]
   )
 
-  const nodeColor = useCallback(
-    (node) => getEffectiveNodeColor(node),
-    [getEffectiveNodeColor]
+  const getEffectiveOpacity = useCallback(
+    (node) => {
+      if (!selectedNode) return 1
+      return relatedNodeIds.has(node.id) ? 1 : 0.18
+    },
+    [selectedNode, relatedNodeIds]
   )
+
+  const getIsHighlighted = useCallback(
+    (node) => !!selectedNode && relatedNodeIds.has(node.id),
+    [selectedNode, relatedNodeIds]
+  )
+
+  const nodeColor = useCallback((node) => getEffectiveNodeColor(node), [getEffectiveNodeColor])
   const nodeThreeObject = useCallback(
-    (node) => createNodeMesh(node, nodeRelSize, getEffectiveNodeColor),
-    [nodeRelSize, getEffectiveNodeColor]
+    (node) => {
+      const showLabel = !!selectedNode && relatedNodeIds.has(node.id)
+      return createNodeMesh(
+        node,
+        nodeRelSize,
+        getEffectiveNodeColor,
+        getEffectiveOpacity,
+        getIsHighlighted,
+        showLabel
+      )
+    },
+    [
+      nodeRelSize,
+      getEffectiveNodeColor,
+      getEffectiveOpacity,
+      getIsHighlighted,
+      selectedNode,
+      relatedNodeIds,
+    ]
   )
   const nodeLabel = useCallback(
-    (n) => (showNodeLabels ? n.name : ''),
-    [showNodeLabels]
+    (n) =>
+      selectedNode && relatedNodeIds.has(n.id)
+        ? n.name
+        : showNodeLabels
+          ? n.name
+          : '',
+    [showNodeLabels, selectedNode, relatedNodeIds]
   )
   const setNodeColorByType = useCallback((type, hex) => {
     setNodeColors((prev) => ({ ...prev, [type]: hex }))
   }, [])
   const linkWidth = useCallback(
-    (link) => (link.value || 1) * linkWidthScale,
-    [linkWidthScale]
+    (link) => {
+      const base = (link.value || 1) * linkWidthScale
+      if (!selectedNode) return base
+      const a = link.source?.id ?? link.source
+      const b = link.target?.id ?? link.target
+      return relatedNodeIds.has(a) && relatedNodeIds.has(b) ? base * 1.8 : base * 0.4
+    },
+    [linkWidthScale, selectedNode, relatedNodeIds]
   )
 
   const linkColor = useCallback(
     (link) => {
-      const normal = 'rgba(163, 163, 163, 0.4)'
+      const normal = 'rgba(100, 100, 100, 0.35)'
       if (!selectedNode) return normal
       const a = link.source?.id ?? link.source
       const b = link.target?.id ?? link.target
-      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return 'rgba(163, 163, 163, 0.6)'
-      return 'rgba(100, 100, 100, 0.15)'
+      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return 'rgba(59, 130, 246, 0.9)'
+      return 'rgba(150, 150, 150, 0.08)'
     },
     [selectedNode, relatedNodeIds]
   )
@@ -334,63 +391,20 @@ export default function ForceGraph3DScene() {
       className="flex h-full min-h-0 w-full flex-1 overflow-hidden bg-neutral-900"
       style={{ minHeight: 200, height: '100%' }}
     >
-      {/* Panel izquierdo: contenido del .md del nodo seleccionado */}
-      <div
-        className={`flex h-full shrink-0 flex-col border-r border-neutral-700 bg-neutral-800/98 shadow-xl transition-[width] duration-300 ease-out ${
-          selectedNode ? 'w-[min(420px,90vw)]' : 'w-0 overflow-hidden border-r-0'
-        }`}
-      >
-        {selectedNode && (
-          <>
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-700 px-4 py-2">
-              <h3 className="truncate text-xs font-medium text-neutral-200">{selectedNode.name}</h3>
-              <button
-                type="button"
-                onClick={() => setSelectedNode(null)}
-                className="shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-700 hover:text-white"
-                aria-label="Cerrar panel"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {mdLoading ? (
-                <p className="text-neutral-400">Cargando…</p>
-              ) : (
-                <article className="MarkdownPanel text-sm text-neutral-300 [&_h1]:mb-1.5 [&_h1]:text-base [&_h1]:font-semibold [&_h1]:text-neutral-100 [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-neutral-100 [&_p]:mb-1.5 [&_p]:text-xs [&_ul]:list-inside [&_ul]:list-disc [&_ul]:mb-1.5 [&_ul]:text-xs [&_ol]:list-inside [&_ol]:list-decimal [&_ol]:mb-1.5 [&_ol]:text-xs [&_a]:text-neutral-200 [&_a]:underline [&_a]:cursor-pointer [&_strong]:text-neutral-100 [&_hr]:my-2 [&_hr]:border-neutral-600">
-                  <ReactMarkdown
-                    components={{
-                      a: ({ href, ...props }) => {
-                        const handleLinkClick = (e) => {
-                          const node = findNodeByLinkHref(href, data.nodes)
-                          if (node) {
-                            e.preventDefault()
-                            setSelectedNode(node)
-                          }
-                        }
-                        return (
-                          <a
-                            href={href}
-                            {...props}
-                            className="text-neutral-200 hover:text-white underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={handleLinkClick}
-                          />
-                        )
-                      },
-                    }}
-                  >
-                    {mdContent}
-                  </ReactMarkdown>
-                </article>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      <NodeContentPanel
+        node={selectedNode}
+        content={mdContent}
+        loading={mdLoading}
+        graphNodes={data.nodes}
+        onSelectNode={setSelectedNode}
+        onClose={() => setSelectedNode(null)}
+        open={!!selectedNode}
+        accentColor={
+          selectedNode
+            ? nodeColors[selectedNode.type] ?? selectedNode.color ?? '#737373'
+            : undefined
+        }
+      />
 
       <div
         ref={containerRef}
@@ -398,12 +412,12 @@ export default function ForceGraph3DScene() {
         style={{ backgroundColor: graphBgColor }}
       >
         {loadError && (
-          <p className="absolute left-3 top-3 z-10 text-xs text-neutral-400">
+          <p className="absolute left-3 top-3 z-10 text-xs text-neutral-600">
             Red local: {loadError}. Usando datos de ejemplo.
           </p>
         )}
         {hasData && !hasSize && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-400">
+          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-600">
             Preparando vista 3D…
           </div>
         )}
@@ -439,30 +453,32 @@ export default function ForceGraph3DScene() {
           />
         )}
         {!hasData && !loadError && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-400">
+          <div className="absolute inset-0 z-10 flex items-center justify-center text-neutral-600">
             Cargando red de archivos…
           </div>
         )}
 
-        {/* Leyenda: debajo del botón de controles, esquina superior derecha */}
+        {/* Leyenda y, al seleccionar, lista de nodos conectados */}
         {hasData && (
-          <div className="absolute right-3 top-14 z-10 rounded-lg border border-neutral-700 bg-neutral-800/95 px-3 py-2 shadow-lg backdrop-blur">
-            <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
-              Leyenda
-            </div>
-            <div className="flex flex-col gap-1">
-              {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (
-                <div
-                  key={type}
-                  className="flex items-center gap-2 text-xs text-neutral-300"
-                  style={{ color: nodeColors[type] ?? DEFAULT_NODE_COLORS[type] }}
-                >
-                  <span className="opacity-90">
-                    {NODE_TYPE_LEGEND_ICONS[type] ?? NODE_TYPE_LEGEND_ICONS.indice}
-                  </span>
-                  <span className="text-neutral-300">{label}</span>
-                </div>
-              ))}
+          <div className="absolute right-3 top-14 z-10 flex max-h-[calc(100vh-5rem)] flex-col gap-2 overflow-hidden">
+            <div className="rounded-lg border border-neutral-300 bg-white/95 px-3 py-2 shadow-lg backdrop-blur">
+              <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+                Leyenda
+              </div>
+              <div className="flex flex-col gap-1">
+                {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (
+                  <div
+                    key={type}
+                    className="flex items-center gap-2 text-xs text-neutral-700"
+                    style={{ color: nodeColors[type] ?? DEFAULT_NODE_COLORS[type] }}
+                  >
+                    <span className="opacity-90">
+                      {NODE_TYPE_LEGEND_ICONS[type] ?? NODE_TYPE_LEGEND_ICONS.indice}
+                    </span>
+                    <span className="text-neutral-700">{label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -470,7 +486,7 @@ export default function ForceGraph3DScene() {
         <button
           type="button"
           onClick={() => setShowControls((v) => !v)}
-          className="absolute top-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800/90 text-neutral-300 shadow-lg backdrop-blur hover:bg-neutral-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
+          className="absolute top-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-lg bg-white/95 text-neutral-600 shadow-lg backdrop-blur hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-400"
           title="Controles del grafo"
           aria-label="Controles del grafo"
         >
@@ -480,13 +496,13 @@ export default function ForceGraph3DScene() {
         </button>
 
         {showControls && (
-          <div className="absolute top-14 right-3 z-10 w-64 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-800/98 p-4 shadow-xl backdrop-blur">
+          <div className="absolute top-14 right-3 z-10 w-64 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-neutral-300 bg-white/98 p-4 shadow-xl backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-neutral-200">Controles 3D</span>
+              <span className="text-sm font-medium text-neutral-800">Controles 3D</span>
               <button
                 type="button"
                 onClick={() => setShowControls(false)}
-                className="text-neutral-400 hover:text-white"
+                className="text-neutral-500 hover:text-neutral-900"
                 aria-label="Cerrar"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -500,12 +516,12 @@ export default function ForceGraph3DScene() {
                   type="checkbox"
                   checked={showNodeLabels}
                   onChange={(e) => setShowNodeLabels(e.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-600 accent-neutral-500"
+                  className="h-4 w-4 rounded border-neutral-400 accent-neutral-500"
                 />
-                <span className="text-xs text-neutral-300">Ver texto de nodos (al pasar ratón)</span>
+                <span className="text-xs text-neutral-600">Ver texto de nodos (al pasar ratón)</span>
               </label>
               <label className="block">
-                <span className="block text-xs font-medium text-neutral-400">Tamaño de nodos</span>
+                <span className="block text-xs font-medium text-neutral-600">Tamaño de nodos</span>
                 <input
                   type="range"
                   min={0.5}
@@ -518,7 +534,7 @@ export default function ForceGraph3DScene() {
                 <span className="text-xs text-neutral-500">{nodeRelSize}</span>
               </label>
               <div>
-                <span className="mb-2 block text-xs font-medium text-neutral-400">Colores por tipo de nodo</span>
+                <span className="mb-2 block text-xs font-medium text-neutral-600">Colores por tipo de nodo</span>
                 <div className="space-y-1.5">
                   {Object.entries(NODE_TYPE_LABELS).map(([type, label]) => (
                     <div key={type} className="flex items-center gap-2">
@@ -526,29 +542,29 @@ export default function ForceGraph3DScene() {
                         type="color"
                         value={nodeColors[type] ?? DEFAULT_NODE_COLORS[type]}
                         onChange={(e) => setNodeColorByType(type, e.target.value)}
-                        className="h-7 w-9 cursor-pointer rounded border border-neutral-600 bg-transparent"
+                        className="h-7 w-9 cursor-pointer rounded border border-neutral-400 bg-transparent"
                         title={label}
                       />
-                      <span className="truncate text-xs text-neutral-300">{label}</span>
+                      <span className="truncate text-xs text-neutral-600">{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <span className="mb-1.5 block text-xs font-medium text-neutral-400">Fondo del espacio</span>
+                <span className="mb-1.5 block text-xs font-medium text-neutral-600">Fondo del espacio</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
                     value={graphBgColor}
                     onChange={(e) => setGraphBgColor(e.target.value)}
-                    className="h-7 w-9 cursor-pointer rounded border border-neutral-600 bg-transparent"
+                    className="h-7 w-9 cursor-pointer rounded border border-neutral-400 bg-transparent"
                     title="Fondo 3D"
                   />
                   <span className="text-xs text-neutral-500">{'#' + (graphBgColor || '').replace(/^#/, '')}</span>
                 </div>
               </div>
               <label className="block">
-                <span className="block text-xs text-neutral-400">Grosor de enlaces</span>
+                <span className="block text-xs text-neutral-600">Grosor de enlaces</span>
                 <input
                   type="range"
                   min={0}
@@ -561,7 +577,7 @@ export default function ForceGraph3DScene() {
                 <span className="text-xs text-neutral-500">{linkWidthScale}</span>
               </label>
               <label className="block">
-                <span className="block text-xs text-neutral-400">Distancia de enlace</span>
+                <span className="block text-xs text-neutral-600">Distancia de enlace</span>
                 <input
                   type="range"
                   min={20}
@@ -574,7 +590,7 @@ export default function ForceGraph3DScene() {
                 <span className="text-xs text-neutral-500">{linkDistance}</span>
               </label>
               <label className="block">
-                <span className="block text-xs text-neutral-400">Repulsión</span>
+                <span className="block text-xs text-neutral-600">Repulsión</span>
                 <input
                   type="range"
                   min={-120}
