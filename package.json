@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "postinstall": "node scripts/patch-three-forcegraph.cjs",
     "patch-graph": "node scripts/patch-three-forcegraph.cjs",
-    "generate-part-graphs": "node scripts/generate-part-graphs.mjs"
+    "generate-part-graphs": "node scripts/generate-part-graphs.mjs",
+    "generate-todas": "node scripts/generate-todas-graph.mjs",
+    "generate-graphs": "npm run generate-part-graphs && npm run generate-todas"
   },
   "dependencies": {
     "react": "^19.2.4",
