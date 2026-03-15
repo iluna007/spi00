@@ -1,0 +1,228 @@
+{
+  "main": {
+    "id": "28cfc273560b60ab",
+    "type": "split",
+    "children": [
+      {
+        "id": "12e9f1a12f04137e",
+        "type": "tabs",
+        "dimension": 43.602225312934635,
+        "children": [
+          {
+            "id": "30719d084909b647",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Parte 1/Parte 1 - De Dios.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Parte 1 - De Dios"
+            }
+          }
+        ]
+      },
+      {
+        "id": "b74ade989f79a0de",
+        "type": "tabs",
+        "dimension": 56.39777468706537,
+        "children": [
+          {
+            "id": "6b252d39f20554d1",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "e0ece2132ecb56a2",
+    "type": "split",
+    "children": [
+      {
+        "id": "57553a6a3997b5a2",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9a6dce797b0fd42c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "d8fbfa20f5abf7d5",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "b7c79fb78d4b85e8",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 225.5
+  },
+  "right": {
+    "id": "7e296e9248dca876",
+    "type": "split",
+    "children": [
+      {
+        "id": "f0bcf1cc82879dbb",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b64b7fd9fc6cb829",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Parte 1/Parte 1 - De Dios.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Parte 1 - De Dios"
+            }
+          },
+          {
+            "id": "b9e309c1e682d395",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Parte 1/Parte 1 - De Dios.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Parte 1 - De Dios"
+            }
+          },
+          {
+            "id": "51168ba13438123f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "e03712af09e8ad1d",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "5d3f5132bebafefb",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Parte 1/Parte 1 - De Dios.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Parte 1 - De Dios"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "30719d084909b647",
+  "lastOpenFiles": [
+    "Parte 1/Definición 7.md",
+    "Parte 1/Definición 6.md",
+    "Parte 1/Definición 5.md",
+    "Parte 1/Definición 4.md",
+    "Parte 1/Definición 3.md",
+    "Parte 1/Parte 1 - De Dios.md",
+    "Parte 1/Definición 1.md",
+    "Parte 4/Parte 4 - De la Servidumbre.md",
+    "Parte 3/Parte 3 - De Los Afectos.md",
+    "Parte 2/Parte 2 - De la Mente.md",
+    "Parte 1/Definición 8.md",
+    "Welcome.md",
+    "create a link.md",
+    "Parte 5",
+    "Parte 4",
+    "Parte 3",
+    "Parte 2",
+    "Definición.md",
+    "Parte 1/Definición 2.md",
+    "Parte 1",
+    "Parte 5/Parte 5 - De la Libertad.md"
+  ]
+}
