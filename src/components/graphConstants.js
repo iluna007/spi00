@@ -30,7 +30,7 @@ export const NODE_GEOMETRIES = {
   demostracion: new THREE.CylinderGeometry(0.5, 0.5, 1, 6),
   corolario: new THREE.ConeGeometry(0.6, 1, 6),
   escolio: new THREE.TorusGeometry(0.5, 0.25, 8, 16),
-  indice: new THREE.SphereGeometry(0.6, 12, 12),
+  indice: new THREE.OctahedronGeometry(0.55, 0),
 }
 
 const materialCache = new Map()
@@ -50,30 +50,49 @@ export function getMaterial(color, opacity = 1, isHighlighted = false) {
 }
 
 const labelTextureCache = new Map()
-function makeLabelTexture(text) {
+const DPR = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
+
+function makeLabelTexture(text, textColor) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
-  const font = '14px system-ui, sans-serif'
+  const fontSize = 20
+  const font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif`
   ctx.font = font
   const m = ctx.measureText(text)
-  const w = Math.ceil(Math.max(m.width + 16, 1))
-  const h = 24
+  const pad = 18
+  const w = Math.ceil(Math.max(m.width + pad * 2, 1) * DPR)
+  const h = Math.ceil(36 * DPR)
   canvas.width = w
   canvas.height = h
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+  const cx = w / DPR / 2
+  const cy = h / DPR / 2
+  const r = 6
+  const x = 4, y = 4, rw = w / DPR - 8, rh = h / DPR - 8
+  ctx.beginPath()
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, rw, rh, r)
+  } else {
+    ctx.rect(x, y, rw, rh)
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.72)'
+  ctx.fill()
   ctx.font = font
-  ctx.fillStyle = '#1f2937'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(text, w / 2, h / 2)
+  ctx.fillStyle = /^#[0-9a-fA-F]{6}$/.test(textColor) ? textColor : '#ffffff'
+  ctx.fillText(text, cx, cy)
   const tex = new THREE.CanvasTexture(canvas)
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
   tex.needsUpdate = true
   return tex
 }
 
-export function getLabelTexture(name) {
-  const key = name || ''
+export function getLabelTexture(name, textColor) {
+  const key = (name || '') + '|' + (textColor || '')
   if (!labelTextureCache.has(key)) {
-    labelTextureCache.set(key, makeLabelTexture(key))
+    labelTextureCache.set(key, makeLabelTexture(name || '', textColor))
   }
   return labelTextureCache.get(key)
 }

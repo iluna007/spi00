@@ -43,6 +43,21 @@ function getNodeTypeLabels(partKey) {
   }
 }
 
+/** Devuelve etiqueta abreviada para el nodo (Def-1, Ax-3, Prop 4, Demo 1-1, etc.). */
+function getAbbreviatedLabel(node) {
+  const id = (node?.id || node?.name || '').toString()
+  const type = (node?.type || '').toString()
+  if (/^parte\d$/i.test(id)) return id.replace(/parte/i, 'P')
+  if (id.match(/^Parte\s*\d/i)) return id.replace(/Parte\s*(\d).*/i, 'P$1')
+  if (type === 'definicion' || /^Definicion\s*\d+/i.test(id)) return id.replace(/Definicion\s*(\d+).*/i, 'Def-$1')
+  if (type === 'axioma' || /^Axioma\s*\d+/i.test(id)) return id.replace(/Axioma\s*(\d+).*/i, 'Ax-$1')
+  if (type === 'proposicion' || /^Proposicion\s*\d+$/i.test(id)) return id.replace(/Proposicion\s*(\d+)/i, 'Prop $1')
+  if (type === 'demostracion' || /^Demostracion\s*\d+/i.test(id)) return id.replace(/Demostracion\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Demo $1-$2')
+  if (type === 'corolario' || /^Corolario\s*\d+/i.test(id)) return id.replace(/Corolario\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Cor $1-$2')
+  if (type === 'escolio' || /^Escolio\s*\d+/i.test(id)) return id.replace(/Escolio\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Esc $1-$2')
+  return id.length > 12 ? id.slice(0, 10) + '…' : id
+}
+
 // Iconos 2D para la leyenda (forma aproximada a la 3D)
 const NODE_TYPE_LEGEND_ICONS = {
   definicion: (
@@ -86,7 +101,10 @@ const NODE_TYPE_LEGEND_ICONS = {
 /** Crea la malla del nodo; getColor, getOpacity y getIsHighlighted dependen de la selección (puede ser gris si está “apagado”) */
 /** Crea una textura de canvas con el texto del nodo para usar en Sprite */
 
-function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighted, showLabel) {
+const LABEL_BASE_SCALE = 5
+const LABEL_REF_DISTANCE = 80
+
+function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighted, showLabel, labelText, labelScale, labelTextColor) {
   const type = node.type || 'indice'
   const geom = NODE_GEOMETRIES[type] || NODE_GEOMETRIES.indice
   const color = getColor(node)
@@ -99,15 +117,19 @@ function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighte
   if (!showLabel) return mesh
   const group = new THREE.Group()
   group.add(mesh)
+  const text = labelText != null ? String(labelText) : (node.name || node.id)
   const spriteMat = new THREE.SpriteMaterial({
-    map: getLabelTexture(node.name || node.id),
+    map: getLabelTexture(text, labelTextColor ?? '#ffffff'),
     transparent: true,
     depthWrite: false,
+    depthTest: false,
   })
   const sprite = new THREE.Sprite(spriteMat)
-  const scale = 5
-  sprite.scale.set(scale, scale * 0.45, 1)
+  sprite.renderOrder = 1000
+  const base = (LABEL_BASE_SCALE * (labelScale ?? 1))
+  sprite.scale.set(base, base * 0.45, 1)
   sprite.position.y = -s * 1.4 - 1.2
+  sprite.userData.isLabelSprite = true
   group.add(sprite)
   return group
 }
@@ -115,6 +137,7 @@ function createNodeMesh(node, nodeRelSize, getColor, getOpacity, getIsHighlighte
 export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const containerRef = useRef(null)
   const graphRef = useRef(null)
+  const searchTypeDropdownRef = useRef(null)
   const partConfig = getPartConfig(partKey)
   const nodeTypeLabels = useMemo(() => getNodeTypeLabels(partKey), [partKey])
 
@@ -131,13 +154,18 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const [mdContent, setMdContent] = useState('')
   const [mdLoading, setMdLoading] = useState(false)
   const [graphDataReady, setGraphDataReady] = useState(false)
-  const [useCustomShapes, setUseCustomShapes] = useState(false)
+  const [useCustomShapes] = useState(true)
   const [showNodeLabels, setShowNodeLabels] = useState(true)
+  const [labelScale, setLabelScale] = useState(1)
+  const [labelTextColor, setLabelTextColor] = useState('#ffffff')
   const [linkColorNormal, setLinkColorNormal] = useState('#646464')
   const [linkColorHighlight, setLinkColorHighlight] = useState('#3b82f6')
   const [visibleTypes, setVisibleTypes] = useState(() =>
     Object.keys(NODE_TYPE_LABELS_BASE).reduce((acc, t) => ({ ...acc, [t]: true }), {})
   )
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchTypeFilter, setSearchTypeFilter] = useState('')
+  const [searchTypeOpen, setSearchTypeOpen] = useState(false)
 
   // Medir contenedor para dar width/height explícitos al canvas 3D (nunca guardar 0 para no ocultar el grafo al abrir el panel)
   useEffect(() => {
@@ -207,6 +235,21 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     return () => { cancelled = true }
   }, [partKey, partConfig.graphUrl, enrichDataWithDegree])
 
+  useEffect(() => {
+    if (labelTextColor && graphRef.current?.refresh) graphRef.current.refresh()
+  }, [labelTextColor])
+
+  useEffect(() => {
+    if (!searchTypeOpen) return
+    const onOutside = (e) => {
+      if (searchTypeDropdownRef.current && !searchTypeDropdownRef.current.contains(e.target)) {
+        setSearchTypeOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [searchTypeOpen])
+
   const data = graphData || { nodes: [], links: [] }
   const hasData = data.nodes.length > 0
   const hasSize = dimensions.width > 0 && dimensions.height > 0
@@ -214,7 +257,6 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   useEffect(() => {
     if (!hasData || !hasSize) {
       setGraphDataReady(false)
-      setUseCustomShapes(false)
       return
     }
     const id = requestAnimationFrame(() => {
@@ -222,13 +264,6 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     })
     return () => cancelAnimationFrame(id)
   }, [hasData, hasSize])
-
-  // Activar formas 3D por tipo después de que el layout esté listo
-  useEffect(() => {
-    if (!graphDataReady) return
-    const t = setTimeout(() => setUseCustomShapes(true), 350)
-    return () => clearTimeout(t)
-  }, [graphDataReady])
 
   useEffect(() => {
     const g = graphRef.current
@@ -267,6 +302,32 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     return { nodes, links }
   }, [data, visibleTypes])
 
+  const searchResults = useMemo(() => {
+    if (!data?.nodes?.length) return []
+    const q = (searchQuery || '').trim().toLowerCase()
+    const typeFilter = (searchTypeFilter || '').trim()
+    return data.nodes
+      .filter((n) => {
+        if (typeFilter && n.type !== typeFilter) return false
+        if (!q) return true
+        const id = (n.id || '').toString().toLowerCase()
+        const name = (n.name || '').toString().toLowerCase()
+        const abbr = getAbbreviatedLabel(n).toLowerCase()
+        return id.includes(q) || name.includes(q) || abbr.includes(q)
+      })
+      .slice(0, 30)
+  }, [data?.nodes, searchQuery, searchTypeFilter])
+
+  const handleSearchSelect = useCallback((node) => {
+    setSelectedNode(node)
+    setTimeout(() => {
+      const g = graphRef.current
+      if (g?.zoomToFit && node?.id) {
+        g.zoomToFit(500, 80, (n) => (n.id ?? n) === node.id)
+      }
+    }, 150)
+  }, [])
+
   const toggleTypeVisibility = useCallback((type) => {
     setVisibleTypes((prev) => ({ ...prev, [type]: !prev[type] }))
   }, [])
@@ -292,14 +353,18 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const nodeColor = useCallback((node) => getEffectiveNodeColor(node), [getEffectiveNodeColor])
   const nodeThreeObject = useCallback(
     (node) => {
-      const showLabel = !!selectedNode && relatedNodeIds.has(node.id)
+      const showLabel = showNodeLabels
+      const labelText = getAbbreviatedLabel(node)
       return createNodeMesh(
         node,
         nodeRelSize,
         getEffectiveNodeColor,
         getEffectiveOpacity,
         getIsHighlighted,
-        showLabel
+        showLabel,
+        labelText,
+        labelScale,
+        labelTextColor
       )
     },
     [
@@ -307,19 +372,33 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
       getEffectiveNodeColor,
       getEffectiveOpacity,
       getIsHighlighted,
-      selectedNode,
-      relatedNodeIds,
+      showNodeLabels,
+      labelScale,
+      labelTextColor,
     ]
   )
-  const nodeLabel = useCallback(
-    (n) =>
-      selectedNode && relatedNodeIds.has(n.id)
-        ? n.name
-        : showNodeLabels
-          ? n.name
-          : '',
-    [showNodeLabels, selectedNode, relatedNodeIds]
+  /** Tooltip al pasar el ratón: nombre completo */
+  const nodeLabel = useCallback((n) => n?.name || n?.id || '', [])
+
+  /** Escala la etiqueta del nodo según la distancia a la cámara (más grande cerca, más pequeña lejos). */
+  const nodePositionUpdate = useCallback(
+    (obj, coords) => {
+      if (!useCustomShapes || !graphRef.current) return
+      const cam = graphRef.current.camera?.()
+      if (!cam) return
+      const sprite = obj?.children?.[1]
+      if (!sprite?.userData?.isLabelSprite) return
+      const dx = cam.position.x - coords.x
+      const dy = cam.position.y - coords.y
+      const dz = cam.position.z - coords.z
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1
+      const t = distance / LABEL_REF_DISTANCE
+      const scale = Math.max(1.5, Math.min(20, LABEL_BASE_SCALE * t * labelScale))
+      sprite.scale.set(scale, scale * 0.45, 1)
+    },
+    [useCustomShapes, labelScale]
   )
+
   const setNodeColorByType = useCallback((type, hex) => {
     setNodeColors((prev) => ({ ...prev, [type]: hex }))
   }, [])
@@ -398,6 +477,11 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const panelBorderRClass = isDarkBg ? 'border-r-white/90' : 'border-r-black/90'
   const panelBorderLClass = isDarkBg ? 'border-l-white/90' : 'border-l-black/90'
   const panelBorderBClass = isDarkBg ? 'border-b-white/90' : 'border-b-black/90'
+  const searchInputStyle = {
+    backgroundColor: isDarkBg ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+    borderColor: isDarkBg ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)',
+    color: isDarkBg ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.9)',
+  }
 
   return (
     <div
@@ -451,6 +535,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             nodeRelSize={nodeRelSize}
             nodeThreeObject={useCustomShapes ? nodeThreeObject : undefined}
             nodeThreeObjectExtend={useCustomShapes ? false : undefined}
+            nodePositionUpdate={useCustomShapes ? nodePositionUpdate : undefined}
             linkWidth={linkWidth}
             linkColor={linkColor}
             linkVisibility={linkVisibility}
@@ -506,6 +591,97 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 })}
               </div>
             </div>
+            {/* Buscador: zoom a nodo al seleccionar */}
+            <div
+              className={`mt-2 rounded-lg border px-2 py-1.5 sm:px-3 sm:py-2 ${panelBorderClass}`}
+              style={{ backgroundColor: graphBgColor }}
+            >
+              <div className={`mb-1.5 text-[10px] font-medium uppercase tracking-wider ${getContrastTextClasses(graphBgColor).text}`}>
+                Buscar
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Def-1, Prop 5, Demo 1-2…"
+                className="mb-1.5 w-full rounded border px-2 py-1 text-xs placeholder:opacity-60 focus:outline-none focus:ring-1 focus:ring-inset"
+                style={searchInputStyle}
+                aria-label="Buscar nodo"
+              />
+              <div className="relative mb-1.5" ref={searchTypeDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setSearchTypeOpen((o) => !o)}
+                  className="flex w-full items-center justify-between rounded border px-2 py-1 text-left text-xs focus:outline-none focus:ring-1 focus:ring-inset"
+                  style={searchInputStyle}
+                  aria-label="Filtrar por tipo"
+                  aria-expanded={searchTypeOpen}
+                >
+                  <span>{searchTypeFilter ? (nodeTypeLabels[searchTypeFilter] || searchTypeFilter) : 'Todos'}</span>
+                  <svg className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={searchTypeOpen ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                  </svg>
+                </button>
+                {searchTypeOpen && (
+                  <div
+                    className="absolute left-0 right-0 top-full z-20 mt-0.5 max-h-[140px] overflow-y-auto rounded border shadow-lg"
+                    style={{ backgroundColor: graphBgColor, borderColor: searchInputStyle.borderColor }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => { setSearchTypeFilter(''); setSearchTypeOpen(false) }}
+                      className={`flex w-full items-center gap-1.5 rounded-none px-2 py-1.5 text-left text-xs ${panelTextClass} hover:opacity-100`}
+                      style={{ backgroundColor: graphBgColor }}
+                    >
+                      Todos
+                    </button>
+                    {Object.entries(nodeTypeLabels)
+                      .filter(([t]) => t !== 'indice')
+                      .map(([type, label]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => { setSearchTypeFilter(type); setSearchTypeOpen(false) }}
+                          className={`flex w-full items-center gap-1.5 rounded-none px-2 py-1.5 text-left text-xs ${panelTextClass} hover:opacity-100`}
+                          style={{ backgroundColor: graphBgColor, color: nodeColors[type] ?? undefined }}
+                        >
+                          <span className="shrink-0 opacity-90">{NODE_TYPE_LEGEND_ICONS[type] ?? NODE_TYPE_LEGEND_ICONS.indice}</span>
+                          {label}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div
+                className="max-h-[120px] overflow-y-auto rounded border"
+                style={{ backgroundColor: searchInputStyle.backgroundColor, borderColor: searchInputStyle.borderColor }}
+              >
+                {searchResults.length === 0 ? (
+                  <p className={`py-1 px-1 text-[10px] opacity-70 ${panelTextClass}`}>
+                    {searchQuery || searchTypeFilter ? 'Sin resultados' : 'Escribe o elige tipo'}
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-0.5 p-0.5">
+                    {searchResults.map((node) => (
+                      <li key={node.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleSearchSelect(node)}
+                          className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] transition-colors hover:opacity-100 ${panelTextClass}`}
+                          style={{ color: nodeColors[node.type] ?? node.color ?? undefined }}
+                          title={node.name || node.id}
+                        >
+                          <span className="shrink-0 opacity-80">
+                            {NODE_TYPE_LEGEND_ICONS[node.type] ?? NODE_TYPE_LEGEND_ICONS.indice}
+                          </span>
+                          <span className="truncate">{getAbbreviatedLabel(node)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -542,6 +718,29 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 />
                 <span className={`text-[10px] ${panelTextClass}`}>Texto en nodos</span>
               </label>
+              <div className="flex items-center gap-1">
+                <span className={`w-14 shrink-0 text-[10px] ${panelTextClass}`}>Etiquetas</span>
+                <input
+                  type="range"
+                  min={0.4}
+                  max={2}
+                  step={0.1}
+                  value={labelScale}
+                  onChange={(e) => setLabelScale(Number(e.target.value))}
+                  className="h-1.5 flex-1 accent-neutral-500"
+                />
+                <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{labelScale.toFixed(1)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="color"
+                  value={labelTextColor}
+                  onChange={(e) => setLabelTextColor(e.target.value)}
+                  className="h-6 w-8 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
+                  title="Color del texto"
+                />
+                <span className={`truncate text-[10px] ${panelTextClass}`}>Color texto</span>
+              </div>
               <div className="flex items-center gap-2">
                 <span className={`shrink-0 text-[10px] ${panelTextClass}`}>Nodos</span>
                 <input
