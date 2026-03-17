@@ -4,11 +4,11 @@ import { useGraphControls, getContrastBorderClass, getContrastTextClasses } from
 
 const navLinks = [
   { to: '/', label: 'Parte 1' },
-  { to: '/parte2', label: 'Parte 2' },
-  { to: '/parte3', label: 'Parte 3' },
-  { to: '/parte4', label: 'Parte 4' },
-  { to: '/parte5', label: 'Parte 5' },
-  { to: '/todas', label: 'Todas' },
+ // { to: '/parte2', label: 'Parte 2' },
+ // { to: '/parte3', label: 'Parte 3' },
+ // { to: '/parte4', label: 'Parte 4' },
+ // { to: '/parte5', label: 'Parte 5' },
+ // { to: '/todas', label: 'Todas' },
   { to: '/about', label: 'Info' },
 ]
 
@@ -50,7 +50,7 @@ export default function Nav() {
           className={`min-h-[44px] flex items-center text-base font-semibold sm:text-lg ${textClasses.active}`}
           onClick={() => setMenuOpen(false)}
         >
-          spi00
+          Spi00
         </NavLink>
         {/* Desktop: links + controls */}
         <ul className="hidden items-center gap-4 md:flex lg:gap-6">
