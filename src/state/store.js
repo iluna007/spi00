@@ -11,7 +11,7 @@ export const initialState = {
     showNodeLabels: true,
     labelScale: 1,
     labelTextColor: '#ffffff',
-    linkColorNormal: '#646464',
+    linkColorNormal: '#ffffff',
     linkColorHighlight: '#3b82f6',
     visibleTypes: {},
     searchQuery: '',

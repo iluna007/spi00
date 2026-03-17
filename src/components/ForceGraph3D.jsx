@@ -158,7 +158,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const [showNodeLabels, setShowNodeLabels] = useState(true)
   const [labelScale, setLabelScale] = useState(1)
   const [labelTextColor, setLabelTextColor] = useState('#ffffff')
-  const [linkColorNormal, setLinkColorNormal] = useState('#646464')
+  const [linkColorNormal, setLinkColorNormal] = useState('#ffffff')
   const [linkColorHighlight, setLinkColorHighlight] = useState('#3b82f6')
   const [visibleTypes, setVisibleTypes] = useState(() =>
     Object.keys(NODE_TYPE_LABELS_BASE).reduce((acc, t) => ({ ...acc, [t]: true }), {})
@@ -424,12 +424,12 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
 
   const linkColor = useCallback(
     (link) => {
-      const normal = hexToRgba(linkColorNormal, 0.35)
+      const normal = hexToRgba(linkColorNormal, 0.9)
       if (!selectedNode) return normal
       const a = link.source?.id ?? link.source
       const b = link.target?.id ?? link.target
-      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return hexToRgba(linkColorHighlight, 0.9)
-      return hexToRgba(linkColorNormal, 0.08)
+      if (relatedNodeIds.has(a) && relatedNodeIds.has(b)) return hexToRgba(linkColorHighlight, 1)
+      return hexToRgba(linkColorNormal, 0.3)
     },
     [selectedNode, relatedNodeIds, linkColorNormal, linkColorHighlight, hexToRgba]
   )
