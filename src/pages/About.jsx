@@ -35,7 +35,7 @@ export default function About() {
 
       <section className={`about-portrait mb-8 w-full ${CONTENT_WIDTH}`}>
         <pre
-          className="font-mono w-full leading-none text-neutral-700 overflow-x-auto"
+          className="font-mono w-full leading-none text-neutral-700 overflow-hidden"
           style={{
             fontFamily: 'var(--font-app), ui-monospace, monospace',
             fontSize: portraitDisplay.length > 2000 ? '6px' : '10px',
