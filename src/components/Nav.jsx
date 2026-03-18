@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { useGraphControls, getContrastBorderClass, getContrastTextClasses } from '../context/GraphControlsContext'
+import { useGraphControls } from '../context/GraphControlsContext'
+import { getContrastBorderClass, getContrastTextClasses } from '../utils/contrast'
 
 const navLinks = [
   { to: '/', label: 'Parte 1' },

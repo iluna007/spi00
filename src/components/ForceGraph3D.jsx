@@ -1,8 +1,11 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import ForceGraph3D from 'react-force-graph-3d'
 import { getPartConfig, getMdBasePath, TODAS_KEY } from '../data/partsConfig'
-import { useGraphControls, getContrastBorderClass, getContrastTextClasses } from '../context/GraphControlsContext'
+import { useGraphControls } from '../context/GraphControlsContext'
+import { getContrastBorderClass, getContrastTextClasses } from '../utils/contrast'
+import { useFluxState, useFluxDispatch } from '../state/FluxProvider'
+import { fetchNodeHints } from '../services/context7Client'
 import fallbackParte1 from '../data/parte1GraphData'
 import fallbackParte2 from '../data/parte2GraphData'
 import fallbackParte3 from '../data/parte3GraphData'
@@ -141,45 +144,45 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const partConfig = getPartConfig(partKey)
   const nodeTypeLabels = useMemo(() => getNodeTypeLabels(partKey), [partKey])
 
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
-  const [graphData, setGraphData] = useState(null)
-  const [loadError, setLoadError] = useState(null)
-  const [nodeRelSize, setNodeRelSize] = useState(2)
-  const [linkWidthScale, setLinkWidthScale] = useState(0.8)
-  const [linkDistance, setLinkDistance] = useState(50)
-  const [chargeStrength, setChargeStrength] = useState(-50)
+  const dispatch = useFluxDispatch()
   const { showControls, setShowControls, graphBgColor, setGraphBgColor } = useGraphControls()
-  const [nodeColors, setNodeColors] = useState(() => ({ ...DEFAULT_NODE_COLORS }))
-  const [selectedNode, setSelectedNode] = useState(null)
-  const [mdContent, setMdContent] = useState('')
-  const [mdLoading, setMdLoading] = useState(false)
-  const [graphDataReady, setGraphDataReady] = useState(false)
-  const [useCustomShapes] = useState(true)
-  const [showNodeLabels, setShowNodeLabels] = useState(true)
-  const [labelScale, setLabelScale] = useState(1)
-  const [labelTextColor, setLabelTextColor] = useState('#ffffff')
-  const [linkColorNormal, setLinkColorNormal] = useState('#ffffff')
-  const [linkColorHighlight, setLinkColorHighlight] = useState('#3b82f6')
-  const [visibleTypes, setVisibleTypes] = useState(() =>
-    Object.keys(NODE_TYPE_LABELS_BASE).reduce((acc, t) => ({ ...acc, [t]: true }), {})
-  )
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchTypeFilter, setSearchTypeFilter] = useState('')
-  const [searchTypeOpen, setSearchTypeOpen] = useState(false)
 
-  // Medir contenedor para dar width/height explícitos al canvas 3D (nunca guardar 0 para no ocultar el grafo al abrir el panel)
+  const dimensions = useFluxState((s) => s.graph.dimensions)
+  const graphData = useFluxState((s) => s.graph.data)
+  const loadError = useFluxState((s) => s.graph.loadError)
+  const nodeRelSize = useFluxState((s) => s.graph.nodeRelSize)
+  const linkWidthScale = useFluxState((s) => s.graph.linkWidthScale)
+  const linkDistance = useFluxState((s) => s.graph.linkDistance)
+  const chargeStrength = useFluxState((s) => s.graph.chargeStrength)
+  const nodeColors = useFluxState((s) => s.graph.nodeColors)
+  const selectedNode = useFluxState((s) => s.selection.node)
+  const mdContent = useFluxState((s) => s.selection.mdContent)
+  const mdLoading = useFluxState((s) => s.selection.mdLoading)
+  const graphDataReady = useFluxState((s) => s.graph.dataReady)
+  const showNodeLabels = useFluxState((s) => s.graph.showNodeLabels)
+  const labelScale = useFluxState((s) => s.graph.labelScale)
+  const labelTextColor = useFluxState((s) => s.graph.labelTextColor)
+  const linkColorNormal = useFluxState((s) => s.graph.linkColorNormal)
+  const linkColorHighlight = useFluxState((s) => s.graph.linkColorHighlight)
+  const visibleTypes = useFluxState((s) => s.graph.visibleTypes)
+  const searchQuery = useFluxState((s) => s.graph.searchQuery)
+  const searchTypeFilter = useFluxState((s) => s.graph.searchTypeFilter)
+  const searchTypeOpen = useFluxState((s) => s.graph.searchTypeOpen)
+  const hints = useFluxState((s) => (selectedNode?.id ? s.context7.hintsByNode[selectedNode.id] ?? [] : []))
+  const useCustomShapes = true
+
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0]?.contentRect ?? {}
-      if (width > 0 && height > 0) setDimensions({ width, height })
+      if (width > 0 && height > 0) dispatch({ type: 'GRAPH/SET_DIMENSIONS', payload: { width, height } })
     })
     ro.observe(el)
     const { width, height } = el.getBoundingClientRect()
-    if (width > 0 && height > 0) setDimensions({ width, height })
+    if (width > 0 && height > 0) dispatch({ type: 'GRAPH/SET_DIMENSIONS', payload: { width, height } })
     return () => ro.disconnect()
-  }, [])
+  }, [dispatch])
 
   // Asignar val = número de conexiones (grado) para tamaño proporcional
   const enrichDataWithDegree = useCallback((raw) => {
@@ -196,10 +199,10 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     return raw
   }, [])
 
-  // Cargar grafo desde JSON de la parte actual (ruta con base para que funcione en subrutas)
   useEffect(() => {
     let cancelled = false
-    setLoadError(null)
+    dispatch({ type: 'GRAPH/LOAD_START' })
+    dispatch({ type: 'SELECTION/CLEAR' })
     const fallback = FALLBACK_BY_PART[partKey] || fallbackParte1
     const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
     const url = `${base}${partConfig.graphUrl.startsWith('/') ? partConfig.graphUrl : '/' + partConfig.graphUrl}`
@@ -212,28 +215,27 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         if (cancelled) return
         const trimmed = text.trim()
         if (trimmed.startsWith('<') || !trimmed.startsWith('{')) {
-          // Solo mostrar mensaje de error en Parte 1 (única con JSON); Partes 2-5 y Todas usan fallback siempre
-          if (partKey === 'parte1') setLoadError('Grafo no disponible en el servidor.')
-          setGraphData(enrichDataWithDegree(fallback))
+          if (partKey === 'parte1') dispatch({ type: 'GRAPH/LOAD_ERROR', payload: { error: 'Grafo no disponible en el servidor.' } })
+          dispatch({ type: 'GRAPH/LOAD_SUCCESS', payload: { data: enrichDataWithDegree(fallback) } })
           return
         }
         try {
           const data = JSON.parse(text)
-          if (data?.nodes?.length) setGraphData(enrichDataWithDegree(data))
-          else setGraphData(enrichDataWithDegree(fallback))
+          if (data?.nodes?.length) dispatch({ type: 'GRAPH/LOAD_SUCCESS', payload: { data: enrichDataWithDegree(data) } })
+          else dispatch({ type: 'GRAPH/LOAD_SUCCESS', payload: { data: enrichDataWithDegree(fallback) } })
         } catch {
-          if (partKey === 'parte1') setLoadError('Grafo no disponible en el servidor.')
-          setGraphData(enrichDataWithDegree(fallback))
+          if (partKey === 'parte1') dispatch({ type: 'GRAPH/LOAD_ERROR', payload: { error: 'Grafo no disponible en el servidor.' } })
+          dispatch({ type: 'GRAPH/LOAD_SUCCESS', payload: { data: enrichDataWithDegree(fallback) } })
         }
       })
       .catch((err) => {
         if (!cancelled) {
-          if (partKey === 'parte1') setLoadError(err.message || 'Grafo no disponible en el servidor.')
-          setGraphData(enrichDataWithDegree(fallback))
+          if (partKey === 'parte1') dispatch({ type: 'GRAPH/LOAD_ERROR', payload: { error: err.message || 'Grafo no disponible en el servidor.' } })
+          dispatch({ type: 'GRAPH/LOAD_SUCCESS', payload: { data: enrichDataWithDegree(fallback) } })
         }
       })
     return () => { cancelled = true }
-  }, [partKey, partConfig.graphUrl, enrichDataWithDegree])
+  }, [partKey, partConfig.graphUrl, enrichDataWithDegree, dispatch])
 
   useEffect(() => {
     if (labelTextColor && graphRef.current?.refresh) graphRef.current.refresh()
@@ -243,12 +245,12 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     if (!searchTypeOpen) return
     const onOutside = (e) => {
       if (searchTypeDropdownRef.current && !searchTypeDropdownRef.current.contains(e.target)) {
-        setSearchTypeOpen(false)
+        dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_OPEN', payload: false })
       }
     }
     document.addEventListener('mousedown', onOutside)
     return () => document.removeEventListener('mousedown', onOutside)
-  }, [searchTypeOpen])
+  }, [searchTypeOpen, dispatch])
 
   const data = graphData || { nodes: [], links: [] }
   const hasData = data.nodes.length > 0
@@ -256,14 +258,14 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
 
   useEffect(() => {
     if (!hasData || !hasSize) {
-      setGraphDataReady(false)
+      dispatch({ type: 'GRAPH/SET_DATA_READY', payload: false })
       return
     }
     const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setGraphDataReady(true))
+      requestAnimationFrame(() => dispatch({ type: 'GRAPH/SET_DATA_READY', payload: true }))
     })
     return () => cancelAnimationFrame(id)
-  }, [hasData, hasSize])
+  }, [hasData, hasSize, dispatch])
 
   useEffect(() => {
     const g = graphRef.current
@@ -316,21 +318,21 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         return id.includes(q) || name.includes(q) || abbr.includes(q)
       })
       .slice(0, 30)
-  }, [data?.nodes, searchQuery, searchTypeFilter])
+  }, [data, searchQuery, searchTypeFilter])
 
   const handleSearchSelect = useCallback((node) => {
-    setSelectedNode(node)
+    dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })
     setTimeout(() => {
       const g = graphRef.current
       if (g?.zoomToFit && node?.id) {
         g.zoomToFit(500, 80, (n) => (n.id ?? n) === node.id)
       }
     }, 150)
-  }, [])
+  }, [dispatch])
 
   const toggleTypeVisibility = useCallback((type) => {
-    setVisibleTypes((prev) => ({ ...prev, [type]: !prev[type] }))
-  }, [])
+    dispatch({ type: 'GRAPH/SET_VISIBLE_TYPES', payload: { ...visibleTypes, [type]: !visibleTypes[type] } })
+  }, [dispatch, visibleTypes])
 
   const getEffectiveNodeColor = useCallback(
     (node) => nodeColors[node.type] ?? node.color ?? '#737373',
@@ -400,8 +402,8 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   )
 
   const setNodeColorByType = useCallback((type, hex) => {
-    setNodeColors((prev) => ({ ...prev, [type]: hex }))
-  }, [])
+    dispatch({ type: 'GRAPH/SET_NODE_COLORS', payload: { [type]: hex } })
+  }, [dispatch])
   const linkWidth = useCallback(
     (link) => {
       const base = (link.value || 1) * linkWidthScale
@@ -444,25 +446,30 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
     [selectedNode, relatedNodeIds]
   )
 
-  // Al seleccionar un nodo, cargar su .md para el panel
   useEffect(() => {
     if (!selectedNode) {
-      setMdContent('')
+      dispatch({ type: 'SELECTION/LOAD_MD_SUCCESS', payload: '' })
       return
     }
-    setMdLoading(true)
+    dispatch({ type: 'SELECTION/LOAD_MD_START' })
     const url = mdUrlForNode(selectedNode, partKey)
     fetch(url)
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.statusText))))
       .then((text) => {
-        setMdContent(text)
-        setMdLoading(false)
+        dispatch({ type: 'SELECTION/LOAD_MD_SUCCESS', payload: text })
       })
       .catch(() => {
-        setMdContent('*No se pudo cargar el archivo.*')
-        setMdLoading(false)
+        dispatch({ type: 'SELECTION/LOAD_MD_ERROR', payload: '*No se pudo cargar el archivo.*' })
       })
-  }, [selectedNode, partKey])
+  }, [selectedNode, partKey, dispatch])
+
+  useEffect(() => {
+    if (!selectedNode?.id) return
+    dispatch({ type: 'CONTEXT7/LOAD_HINTS_START', payload: selectedNode.id })
+    fetchNodeHints(selectedNode.id)
+      .then((hints) => dispatch({ type: 'CONTEXT7/LOAD_HINTS_SUCCESS', payload: { nodeId: selectedNode.id, hints } }))
+      .catch((err) => dispatch({ type: 'CONTEXT7/LOAD_HINTS_ERROR', payload: err?.message }))
+  }, [selectedNode?.id, dispatch])
 
   const panelTextClass = getContrastTextClasses(graphBgColor).text
   const panelBorderClass = getContrastBorderClass(graphBgColor)
@@ -493,8 +500,9 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         content={mdContent}
         loading={mdLoading}
         graphNodes={data.nodes}
-        onSelectNode={setSelectedNode}
-        onClose={() => setSelectedNode(null)}
+        hints={hints}
+        onSelectNode={(node) => dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })}
+        onClose={() => dispatch({ type: 'SELECTION/CLEAR' })}
         open={!!selectedNode}
         accentColor={
           selectedNode
@@ -545,7 +553,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             linkDirectionalArrowColor={linkColor}
             backgroundColor={graphBgColor}
             showNavInfo={false}
-            onNodeClick={(node) => setSelectedNode(node)}
+            onNodeClick={(node) => dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })}
             onEngineStop={() => {
               const g = graphRef.current
               if (g && typeof g.zoomToFit === 'function') {
@@ -602,7 +610,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => dispatch({ type: 'GRAPH/SET_SEARCH_QUERY', payload: e.target.value })}
                 placeholder="Def-1, Prop 5, Demo 1-2…"
                 className="mb-1.5 w-full rounded border px-2 py-1 text-xs placeholder:opacity-60 focus:outline-none focus:ring-1 focus:ring-inset"
                 style={searchInputStyle}
@@ -611,7 +619,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
               <div className="relative mb-1.5" ref={searchTypeDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => setSearchTypeOpen((o) => !o)}
+                  onClick={() => dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_OPEN', payload: !searchTypeOpen })}
                   className="flex w-full items-center justify-between rounded border px-2 py-1 text-left text-xs focus:outline-none focus:ring-1 focus:ring-inset"
                   style={searchInputStyle}
                   aria-label="Filtrar por tipo"
@@ -629,7 +637,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   >
                     <button
                       type="button"
-                      onClick={() => { setSearchTypeFilter(''); setSearchTypeOpen(false) }}
+                      onClick={() => { dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_FILTER', payload: '' }); dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_OPEN', payload: false }) }}
                       className={`flex w-full items-center gap-1.5 rounded-none px-2 py-1.5 text-left text-xs ${panelTextClass} hover:opacity-100`}
                       style={{ backgroundColor: graphBgColor }}
                     >
@@ -641,7 +649,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                         <button
                           key={type}
                           type="button"
-                          onClick={() => { setSearchTypeFilter(type); setSearchTypeOpen(false) }}
+                          onClick={() => { dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_FILTER', payload: type }); dispatch({ type: 'GRAPH/SET_SEARCH_TYPE_OPEN', payload: false }) }}
                           className={`flex w-full items-center gap-1.5 rounded-none px-2 py-1.5 text-left text-xs ${panelTextClass} hover:opacity-100`}
                           style={{ backgroundColor: graphBgColor, color: nodeColors[type] ?? undefined }}
                         >
@@ -713,7 +721,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 <input
                   type="checkbox"
                   checked={showNodeLabels}
-                  onChange={(e) => setShowNodeLabels(e.target.checked)}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_SHOW_NODE_LABELS', payload: e.target.checked })}
                   className="h-3 w-3 rounded border-neutral-400 accent-neutral-500"
                 />
                 <span className={`text-[10px] ${panelTextClass}`}>Texto en nodos</span>
@@ -726,7 +734,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   max={2}
                   step={0.1}
                   value={labelScale}
-                  onChange={(e) => setLabelScale(Number(e.target.value))}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_LABEL_SCALE', payload: Number(e.target.value) })}
                   className="h-1.5 flex-1 accent-neutral-500"
                 />
                 <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{labelScale.toFixed(1)}</span>
@@ -735,7 +743,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                 <input
                   type="color"
                   value={labelTextColor}
-                  onChange={(e) => setLabelTextColor(e.target.value)}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_LABEL_TEXT_COLOR', payload: e.target.value })}
                   className="h-6 w-8 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
                   title="Color del texto"
                 />
@@ -749,7 +757,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   max={6}
                   step={0.25}
                   value={nodeRelSize}
-                  onChange={(e) => setNodeRelSize(Number(e.target.value))}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_NODE_REL_SIZE', payload: Number(e.target.value) })}
                   className="h-1.5 flex-1 accent-neutral-500"
                 />
                 <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{nodeRelSize}</span>
@@ -786,7 +794,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   <input
                     type="color"
                     value={linkColorNormal}
-                    onChange={(e) => setLinkColorNormal(e.target.value)}
+                    onChange={(e) => dispatch({ type: 'GRAPH/SET_LINK_COLORS', payload: { normal: e.target.value } })}
                     className="h-5 w-6 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
                     title="Enlaces"
                   />
@@ -796,7 +804,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   <input
                     type="color"
                     value={linkColorHighlight}
-                    onChange={(e) => setLinkColorHighlight(e.target.value)}
+                    onChange={(e) => dispatch({ type: 'GRAPH/SET_LINK_COLORS', payload: { highlight: e.target.value } })}
                     className="h-5 w-6 shrink-0 cursor-pointer rounded border border-neutral-400 bg-transparent"
                     title="Enlaces (sel.)"
                   />
@@ -811,7 +819,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   max={3}
                   step={0.2}
                   value={linkWidthScale}
-                  onChange={(e) => setLinkWidthScale(Number(e.target.value))}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_LINK_WIDTH_SCALE', payload: Number(e.target.value) })}
                   className="h-1.5 flex-1 accent-neutral-500"
                 />
                 <span className={`w-5 text-right text-[10px] ${panelTextClass}`}>{linkWidthScale}</span>
@@ -824,7 +832,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   max={120}
                   step={5}
                   value={linkDistance}
-                  onChange={(e) => setLinkDistance(Number(e.target.value))}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_LINK_DISTANCE', payload: Number(e.target.value) })}
                   className="h-1.5 flex-1 accent-neutral-500"
                 />
                 <span className={`w-6 text-right text-[10px] ${panelTextClass}`}>{linkDistance}</span>
@@ -837,7 +845,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                   max={-20}
                   step={5}
                   value={chargeStrength}
-                  onChange={(e) => setChargeStrength(Number(e.target.value))}
+                  onChange={(e) => dispatch({ type: 'GRAPH/SET_CHARGE_STRENGTH', payload: Number(e.target.value) })}
                   className="h-1.5 flex-1 accent-neutral-500"
                 />
                 <span className={`w-6 text-right text-[10px] ${panelTextClass}`}>{chargeStrength}</span>

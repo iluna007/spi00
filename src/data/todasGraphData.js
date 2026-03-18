@@ -28,7 +28,7 @@ const PART_CONFIGS = [
 const allNodes = []
 const allLinks = []
 
-PART_CONFIGS.forEach(({ key, folderName, indexName, indexPath, data }) => {
+PART_CONFIGS.forEach(({ key, folderName, data }) => {
   const contentOnly = (data.nodes || []).filter((n) => n.type !== 'indice')
   const partNodes = contentOnly.map((n) => {
     const path = n.path || (FOLDER_BY_TYPE[n.type] ? `${FOLDER_BY_TYPE[n.type]}/${n.id}.md` : `${n.id}.md`)

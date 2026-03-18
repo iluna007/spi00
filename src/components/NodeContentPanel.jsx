@@ -34,8 +34,7 @@ function contentWithClickableWikiLinks(rawContent, graphNodes) {
   let out = rawContent.replace(/\[\[([^\]]+)\]\]/g, (_, text) => `[${text}](${text.trim()})`)
   if (!graphNodes?.length) return out
   const nodeNames = new Set(graphNodes.flatMap((n) => [n.id, n.name].filter(Boolean)))
-  // [nombre] cuando nombre es exactamente un nodo -> enlace clicable (evita [texto](url) existentes)
-  out = out.replace(/\]\([^)]+\)/g, (m) => `\x00${m}\x00`) // marcar enlaces existentes
+  out = out.replace(/\]\([^)]+\)/g, (m) => `\x00${m}\x00`)
   out = out.replace(/\[([^\]#|]+)\]/g, (match, text) => {
     const t = text.trim()
     return nodeNames.has(t) ? `[${text}](${t})` : match
@@ -61,12 +60,14 @@ function contentWithClickableWikiLinks(rawContent, graphNodes) {
  * @param {string} [props.borderClass] - Clase de borde derecho (contorno)
  * @param {string} [props.borderBottomClass] - Clase de borde inferior (header)
  * @param {string} [props.textClass] - Clase de texto para legibilidad
+ * @param {Array<{ title: string, text: string }>} [props.hints] - Hints de Context7 para el nodo
  */
 function NodeContentPanel({
   node,
   content,
   loading,
   graphNodes = [],
+  hints = [],
   onSelectNode,
   onClose,
   open = true,
@@ -173,6 +174,17 @@ function NodeContentPanel({
                   {processedContent}
                 </ReactMarkdown>
               </article>
+            )}
+            {hints?.length > 0 && (
+              <div className="mt-4 border-t border-current border-opacity-20 pt-3">
+                <div className="text-[10px] font-medium uppercase tracking-wider opacity-70 mb-2">Context7</div>
+                {hints.map((h, i) => (
+                  <div key={i} className="mb-2">
+                    <div className="text-xs font-medium opacity-90">{h.title}</div>
+                    <p className="text-xs opacity-80">{h.text}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </>

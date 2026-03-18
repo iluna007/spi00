@@ -1,5 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { GraphControlsProvider, useGraphControls, getContrastBorderClass } from './context/GraphControlsContext'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { useFluxDispatch } from './state/FluxProvider'
+import { GraphControlsProvider, useGraphControls } from './context/GraphControlsContext'
+import { getContrastBorderClass } from './utils/contrast'
 import Nav from './components/Nav'
 import Parte1 from './pages/Parte1'
 import Parte2 from './pages/Parte2'
@@ -10,6 +13,15 @@ import TodasPartes from './pages/TodasPartes'
 import About from './pages/About'
 import './App.css'
 
+function RoutingSync() {
+  const { pathname } = useLocation()
+  const dispatch = useFluxDispatch()
+  useEffect(() => {
+    dispatch({ type: 'ROUTING/NAVIGATE', payload: pathname })
+  }, [pathname, dispatch])
+  return null
+}
+
 function AppContent() {
   const { graphBgColor } = useGraphControls()
   const borderClass = getContrastBorderClass(graphBgColor)
@@ -18,6 +30,7 @@ function AppContent() {
       className={`flex w-full min-w-0 flex-col border-2 ${borderClass}`}
       style={{ height: '100vh', minHeight: 0, backgroundColor: graphBgColor }}
     >
+      <RoutingSync />
       <Nav />
       <div
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
