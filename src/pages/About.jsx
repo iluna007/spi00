@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 const GITHUB_REPO_URL = 'https://github.com/iluna007/spi00'
 const ASCII_ART_URL = '/images/ascii.txt'
 
-const CONTENT_WIDTH = 'max-w-2xl'
+const CONTENT_WIDTH = 'max-w-2xl w-full mx-auto'
 
 function useSpinozaAscii() {
   const [text, setText] = useState('')
@@ -30,12 +30,10 @@ export default function About() {
   const portraitDisplay = asciiFromFile.trim()
 
   return (
-    <main className="page about w-full min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:py-8">
-      
-
-      <section className={`about-portrait mb-8 w-full ${CONTENT_WIDTH}`}>
+    <main className="page about flex w-full min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-6 text-center sm:py-8">
+      <section className={`about-portrait mb-8 ${CONTENT_WIDTH}`}>
         <pre
-          className="font-mono w-full leading-none text-neutral-700 overflow-hidden"
+          className="font-mono inline-block max-w-full leading-none text-neutral-700 overflow-hidden"
           style={{
             fontFamily: 'var(--font-app), ui-monospace, monospace',
             fontSize: portraitDisplay.length > 2000 ? '6px' : '10px',
@@ -72,7 +70,7 @@ export default function About() {
         <h2 className="mb-3 text-lg font-medium text-neutral-800 border-b border-neutral-200 pb-2">
           Jerarquía lógica — cómo se sostiene el sistema
         </h2>
-        <div className="border border-neutral-200 rounded overflow-hidden divide-y divide-neutral-200">
+        <div className="border border-neutral-200 rounded overflow-hidden divide-y divide-neutral-200 text-left">
           {HIERARCHY_ITEMS.map(({ label, color, role, note }) => (
             <div
               key={label}

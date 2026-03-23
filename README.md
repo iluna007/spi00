@@ -1,5 +1,11 @@
 # React + Vite
 
+## Favicon
+
+The tab icon is Spinoza’s seal (“Caute”), from [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Spinoza%27s_seal_%22Caute%22.svg) (public domain).
+
+---
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
