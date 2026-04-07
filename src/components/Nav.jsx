@@ -6,9 +6,9 @@ import { getContrastBorderClass, getContrastTextClasses } from '../utils/contras
 const navLinks = [
   { to: '/', label: 'Parte 1- De Dios' },
   { to: '/parte2', label: 'Parte 2- De la naturaleza y el origen del alma' },
- // { to: '/parte3', label: 'Parte 3' },
- // { to: '/parte4', label: 'Parte 4' },
- // { to: '/parte5', label: 'Parte 5' },
+  { to: '/parte3', label: 'Parte 3- De los Afectos' },
+  { to: '/parte4', label: 'Parte 4- De la Servidumbre' },
+  { to: '/parte5', label: 'Parte 5- De la Libertad' },
  // { to: '/todas', label: 'Todas' },
   { to: '/about', label: 'Info' },
 ]
