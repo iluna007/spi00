@@ -4,11 +4,11 @@ import { useGraphControls } from '../context/GraphControlsContext'
 import { getContrastBorderClass, getContrastTextClasses } from '../utils/contrast'
 
 const navLinks = [
-  { to: '/', label: 'Parte 1- De Dios' },
-  { to: '/parte2', label: 'Parte 2- De la naturaleza y el origen del alma' },
-  { to: '/parte3', label: 'Parte 3- De los Afectos' },
-  { to: '/parte4', label: 'Parte 4- De la Servidumbre' },
-  { to: '/parte5', label: 'Parte 5- De la Libertad' },
+  { to: '/', label: 'Parte 1- Dios' },
+  { to: '/parte2', label: 'Parte 2- Naturaleza y Alma' },
+  { to: '/parte3', label: 'Parte 3- Afectos' },
+  { to: '/parte4', label: 'Parte 4- Servidumbre' },
+  { to: '/parte5', label: 'Parte 5- Entendimiento y Libertad' },
  // { to: '/todas', label: 'Todas' },
   { to: '/about', label: 'Info' },
 ]
