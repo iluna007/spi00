@@ -1,7 +1,8 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import ForceGraph3D from 'react-force-graph-3d'
-import { getPartConfig, getMdBasePath, TODAS_KEY } from '../data/partsConfig'
+import { getPartConfig, TODAS_KEY } from '../data/partsConfig'
+import { formatTodasPartBadge } from '../utils/markdownNav'
 import { useGraphControls } from '../context/GraphControlsContext'
 import { getContrastBorderClass, getContrastTextClasses } from '../utils/contrast'
 import { useFluxState, useFluxDispatch } from '../state/FluxProvider'
@@ -13,6 +14,8 @@ import fallbackParte4 from '../data/parte4GraphData'
 import fallbackParte5 from '../data/parte5GraphData'
 import fallbackTodas from '../data/todasGraphData'
 import NodeContentPanel from './NodeContentPanel'
+import FullTextSearchPanel from './FullTextSearchPanel'
+import { mdUrlForNode } from '../utils/mdNodeUrl'
 import { NODE_TYPE_LABELS_BASE, DEFAULT_NODE_COLORS, NODE_GEOMETRIES, getMaterial, getLabelTexture } from './graphConstants'
 
 const FALLBACK_BY_PART = {
@@ -24,20 +27,6 @@ const FALLBACK_BY_PART = {
   [TODAS_KEY]: fallbackTodas,
 }
 
-function mdUrlForNode(node, partKey) {
-  const folderName = node.folderName || (partKey === TODAS_KEY ? null : getPartConfig(partKey).folderName)
-  const base = getMdBasePath(partKey, folderName)
-  const rawId = node.rawId || node.id
-  const pathSeg = node.path
-    ? node.path.split('/').map(encodeURIComponent).join('/')
-    : (() => {
-        const folder = { definicion: 'Definiciones', axioma: 'Axiomas', proposicion: 'Proposiciones', demostracion: 'Demostraciones', corolario: 'Corolarios', escolio: 'Escolios' }[node.type]
-        const p = folder ? `${folder}/${rawId}.md` : `${rawId}.md`
-        return p.split('/').map(encodeURIComponent).join('/')
-      })()
-  return base + pathSeg
-}
-
 function getNodeTypeLabels(partKey) {
   const config = getPartConfig(partKey)
   return {
@@ -47,18 +36,45 @@ function getNodeTypeLabels(partKey) {
 }
 
 /** Devuelve etiqueta abreviada para el nodo (Def-1, Ax-3, Prop 4, Demo 1-1, etc.). */
-function getAbbreviatedLabel(node) {
+function getAbbreviatedLabel(node, partKey = 'parte1') {
   const id = (node?.id || node?.name || '').toString()
   const type = (node?.type || '').toString()
+  const strip = id.replace(/^parte[1-5]-/i, '')
   if (/^parte\d$/i.test(id)) return id.replace(/parte/i, 'P')
   if (id.match(/^Parte\s*\d/i)) return id.replace(/Parte\s*(\d).*/i, 'P$1')
-  if (type === 'definicion' || /^Definicion\s*\d+/i.test(id)) return id.replace(/Definicion\s*(\d+).*/i, 'Def-$1')
-  if (type === 'axioma' || /^Axioma\s*\d+/i.test(id)) return id.replace(/Axioma\s*(\d+).*/i, 'Ax-$1')
-  if (type === 'proposicion' || /^Proposicion\s*\d+$/i.test(id)) return id.replace(/Proposicion\s*(\d+)/i, 'Prop $1')
-  if (type === 'demostracion' || /^Demostracion\s*\d+/i.test(id)) return id.replace(/Demostracion\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Demo $1-$2')
-  if (type === 'corolario' || /^Corolario\s*\d+/i.test(id)) return id.replace(/Corolario\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Cor $1-$2')
-  if (type === 'escolio' || /^Escolio\s*\d+/i.test(id)) return id.replace(/Escolio\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Esc $1-$2')
-  return id.length > 12 ? id.slice(0, 10) + '…' : id
+  if (type === 'definicion' || /^Definicion\s*\d+/i.test(strip)) {
+    const abbr = strip.replace(/Definicion\s*(\d+).*/i, 'Def-$1')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  if (type === 'axioma' || /^Axioma\s*\d+/i.test(strip)) {
+    const abbr = strip.replace(/Axioma\s*(\d+).*/i, 'Ax-$1')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  if (type === 'proposicion' || /^Proposicion\s*\d+$/i.test(strip)) {
+    const abbr = strip.replace(/Proposicion\s*(\d+)/i, 'Prop $1')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  if (type === 'demostracion' || /^Demostracion\s*\d+/i.test(strip)) {
+    const abbr = strip.replace(/Demostracion\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Demo $1-$2')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  if (type === 'corolario' || /^Corolario\s*\d+/i.test(strip)) {
+    const abbr = strip.replace(/Corolario\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Cor $1-$2')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  if (type === 'escolio' || /^Escolio\s*\d+/i.test(strip)) {
+    const abbr = strip.replace(/Escolio\s*(\d+)\s*-\s*Proposicion\s*(\d+).*/i, 'Esc $1-$2')
+    const b = formatTodasPartBadge(node?.id, partKey)
+    return b ? `${b} ${abbr}` : abbr
+  }
+  const short = strip.length > 12 ? strip.slice(0, 10) + '…' : strip
+  const b = formatTodasPartBadge(node?.id, partKey)
+  return b ? `${b} ${short}` : short
 }
 
 // Iconos 2D para la leyenda (forma aproximada a la 3D)
@@ -141,6 +157,7 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const containerRef = useRef(null)
   const graphRef = useRef(null)
   const searchTypeDropdownRef = useRef(null)
+  const [panelHeadingSlug, setPanelHeadingSlug] = useState(null)
   const partConfig = getPartConfig(partKey)
   const nodeTypeLabels = useMemo(() => getNodeTypeLabels(partKey), [partKey])
 
@@ -170,6 +187,8 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   const searchTypeOpen = useFluxState((s) => s.graph.searchTypeOpen)
   const hints = useFluxState((s) => (selectedNode?.id ? s.context7.hintsByNode[selectedNode.id] ?? [] : []))
   const useCustomShapes = true
+  const [legendStackCompact, setLegendStackCompact] = useState(false)
+  const [searchTextMatchIds, setSearchTextMatchIds] = useState(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -240,6 +259,10 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
   useEffect(() => {
     if (labelTextColor && graphRef.current?.refresh) graphRef.current.refresh()
   }, [labelTextColor])
+
+  useEffect(() => {
+    setSearchTextMatchIds(null)
+  }, [partKey])
 
   useEffect(() => {
     if (!searchTypeOpen) return
@@ -314,13 +337,14 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         if (!q) return true
         const id = (n.id || '').toString().toLowerCase()
         const name = (n.name || '').toString().toLowerCase()
-        const abbr = getAbbreviatedLabel(n).toLowerCase()
+        const abbr = getAbbreviatedLabel(n, partKey).toLowerCase()
         return id.includes(q) || name.includes(q) || abbr.includes(q)
       })
       .slice(0, 30)
   }, [data, searchQuery, searchTypeFilter])
 
   const handleSearchSelect = useCallback((node) => {
+    setPanelHeadingSlug(null)
     dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })
     setTimeout(() => {
       const g = graphRef.current
@@ -329,6 +353,32 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
       }
     }, 150)
   }, [dispatch])
+
+  const zoomToNode = useCallback((node) => {
+    setTimeout(() => {
+      const g = graphRef.current
+      if (g?.zoomToFit && node?.id) {
+        g.zoomToFit(500, 80, (n) => (n.id ?? n) === node.id)
+      }
+    }, 150)
+  }, [])
+
+  const handleFullTextHit = useCallback(
+    (node, sectionSlug) => {
+      setPanelHeadingSlug(sectionSlug || null)
+      dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })
+      zoomToNode(node)
+    },
+    [dispatch, zoomToNode]
+  )
+
+  const clearPanelHeadingSlug = useCallback(() => setPanelHeadingSlug(null), [])
+
+  const handleFullTextExpansion = useCallback((compact) => setLegendStackCompact(!!compact), [])
+
+  const handleSearchTextMatches = useCallback((ids) => {
+    setSearchTextMatchIds(ids?.size ? ids : null)
+  }, [])
 
   const toggleTypeVisibility = useCallback((type) => {
     dispatch({ type: 'GRAPH/SET_VISIBLE_TYPES', payload: { ...visibleTypes, [type]: !visibleTypes[type] } })
@@ -341,22 +391,30 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
 
   const getEffectiveOpacity = useCallback(
     (node) => {
-      if (!selectedNode) return 1
+      const inTextSearch = searchTextMatchIds?.has(node.id)
+      if (!selectedNode) {
+        if (searchTextMatchIds?.size) return inTextSearch ? 1 : 0.22
+        return 1
+      }
+      if (inTextSearch) return 1
       return relatedNodeIds.has(node.id) ? 1 : 0.18
     },
-    [selectedNode, relatedNodeIds]
+    [selectedNode, relatedNodeIds, searchTextMatchIds]
   )
 
   const getIsHighlighted = useCallback(
-    (node) => !!selectedNode && relatedNodeIds.has(node.id),
-    [selectedNode, relatedNodeIds]
+    (node) => {
+      if (searchTextMatchIds?.has(node.id)) return true
+      return !!selectedNode && relatedNodeIds.has(node.id)
+    },
+    [selectedNode, relatedNodeIds, searchTextMatchIds]
   )
 
   const nodeColor = useCallback((node) => getEffectiveNodeColor(node), [getEffectiveNodeColor])
   const nodeThreeObject = useCallback(
     (node) => {
       const showLabel = showNodeLabels
-      const labelText = getAbbreviatedLabel(node)
+      const labelText = getAbbreviatedLabel(node, partKey)
       return createNodeMesh(
         node,
         nodeRelSize,
@@ -501,8 +559,16 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
         loading={mdLoading}
         graphNodes={data.nodes}
         hints={hints}
-        onSelectNode={(node) => dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })}
-        onClose={() => dispatch({ type: 'SELECTION/CLEAR' })}
+        scrollToHeadingSlug={panelHeadingSlug}
+        onScrolledToHeading={clearPanelHeadingSlug}
+        onSelectNode={(node) => {
+          setPanelHeadingSlug(null)
+          dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })
+        }}
+        onClose={() => {
+          setPanelHeadingSlug(null)
+          dispatch({ type: 'SELECTION/CLEAR' })
+        }}
         open={!!selectedNode}
         accentColor={
           selectedNode
@@ -553,7 +619,10 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             linkDirectionalArrowColor={linkColor}
             backgroundColor={graphBgColor}
             showNavInfo={false}
-            onNodeClick={(node) => dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })}
+            onNodeClick={(node) => {
+              setPanelHeadingSlug(null)
+              dispatch({ type: 'SELECTION/SET_NODE', payload: { node } })
+            }}
             onEngineStop={() => {
               const g = graphRef.current
               if (g && typeof g.zoomToFit === 'function') {
@@ -570,9 +639,11 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
 
         {/* Leyenda: en móvil abajo a la izquierda para no tapar; en md+ arriba derecha */}
         {hasData && (
-          <div className="absolute bottom-3 left-3 z-10 flex max-h-[40vh] flex-col overflow-auto sm:bottom-auto sm:left-auto sm:right-3 sm:top-14 sm:max-h-[calc(100vh-5rem)] md:max-h-[calc(100vh-5rem)]">
+          <div className="absolute bottom-3 left-3 z-10 flex max-h-[min(92vh,calc(100vh-3.5rem))] w-[min(100%,280px)] flex-col gap-2 overflow-hidden sm:bottom-auto sm:left-auto sm:right-3 sm:top-14 md:max-h-[calc(100vh-5rem)]">
             <div
-              className={`rounded-lg border px-2 py-1.5 sm:px-3 sm:py-2 ${panelBorderClass}`}
+              className={`min-h-0 shrink overflow-y-auto rounded-lg border px-2 py-1.5 transition-[max-height] duration-200 sm:px-3 sm:py-2 ${
+                legendStackCompact ? 'max-h-[min(18vh,130px)]' : 'max-h-[min(30vh,220px)]'
+              } ${panelBorderClass}`}
               style={{ backgroundColor: graphBgColor }}
             >
               <div className={`mb-1 text-[10px] font-medium uppercase tracking-wider sm:mb-1.5 ${getContrastTextClasses(graphBgColor).text}`}>
@@ -601,7 +672,9 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
             </div>
             {/* Buscador: zoom a nodo al seleccionar */}
             <div
-              className={`mt-2 rounded-lg border px-2 py-1.5 sm:px-3 sm:py-2 ${panelBorderClass}`}
+              className={`min-h-0 shrink overflow-y-auto rounded-lg border px-2 py-1.5 transition-[max-height] duration-200 sm:px-3 sm:py-2 ${
+                legendStackCompact ? 'max-h-[min(22vh,160px)]' : 'max-h-[min(32vh,240px)]'
+              } ${panelBorderClass}`}
               style={{ backgroundColor: graphBgColor }}
             >
               <div className={`mb-1.5 text-[10px] font-medium uppercase tracking-wider ${getContrastTextClasses(graphBgColor).text}`}>
@@ -682,13 +755,27 @@ export default function ForceGraph3DScene({ partKey = 'parte1' }) {
                           <span className="shrink-0 opacity-80">
                             {NODE_TYPE_LEGEND_ICONS[node.type] ?? NODE_TYPE_LEGEND_ICONS.indice}
                           </span>
-                          <span className="truncate">{getAbbreviatedLabel(node)}</span>
+                          <span className="truncate">{getAbbreviatedLabel(node, partKey)}</span>
                         </button>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
+            </div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <FullTextSearchPanel
+                key={partKey}
+                partKey={partKey}
+                graphNodes={data.nodes}
+                graphBgColor={graphBgColor}
+                panelTextClass={panelTextClass}
+                panelBorderClass={panelBorderClass}
+                nodeColors={nodeColors}
+                onSelectHit={handleFullTextHit}
+                onExpansionChange={handleFullTextExpansion}
+                onMatchesChange={handleSearchTextMatches}
+              />
             </div>
           </div>
         )}

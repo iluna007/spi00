@@ -1,45 +1,37 @@
-import { useMemo, memo } from 'react'
+import { useMemo, memo, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import {
+  findGraphNodeByLinkHref,
+  plainTextFromChildren,
+  resolveWikiLinkToNode,
+  slugifyHeading,
+} from '../utils/markdownNav'
 
 /**
- * Resuelve un href o nombre de enlace al nodo del grafo (por path/name/id).
- * Acepta "Axioma 1", "Axioma%201", rutas con .md, etc.
+ * Convierte [[nombre]] y [nombre] (si nombre es un nodo) en enlaces markdown
+ * con href = id canónico del nodo (desambiguado en vista «Todas las partes»).
  */
-function findNodeByLinkHref(href, nodes) {
-  if (!href || !nodes?.length) return null
-  try {
-    const decoded = decodeURIComponent(String(href).trim())
-    const pathPart = decoded.split('/').pop() || decoded
-    const nameWithoutExt = pathPart.replace(/\.md$/i, '').trim()
-    return (
-      nodes.find((n) => n.id === nameWithoutExt || n.name === nameWithoutExt) ||
-      nodes.find(
-        (n) =>
-          n.path &&
-          (n.path.endsWith(pathPart) || n.path.endsWith(nameWithoutExt + '.md'))
-      )
-    )
-  } catch {
-    return null
-  }
-}
-
-/**
- * Convierte [[nombre]] y [nombre] (si nombre es un nodo) en enlaces markdown [nombre](nombre)
- * para que al hacer clic se pueda seleccionar ese nodo en el grafo.
- */
-function contentWithClickableWikiLinks(rawContent, graphNodes) {
+function contentWithClickableWikiLinks(rawContent, graphNodes, selectedNode) {
   if (!rawContent) return rawContent
-  // [[Axioma 1]] o [[Proposición 2]] -> [Axioma 1](Axioma 1) para que el clic seleccione el nodo en el grafo
-  let out = rawContent.replace(/\[\[([^\]]+)\]\]/g, (_, text) => `[${text}](${text.trim()})`)
+  let out = rawContent.replace(/\[\[([^\]]+)\]\]/g, (full, rawInner, offset) => {
+    const inner = rawInner.trim()
+    if (!graphNodes?.length) return `[${inner}](${inner})`
+    const node = resolveWikiLinkToNode(rawInner, graphNodes, selectedNode, offset, rawContent)
+    const label = node?.name || inner
+    const href = node?.id || inner
+    return `[${label}](${href})`
+  })
   if (!graphNodes?.length) return out
   const nodeNames = new Set(graphNodes.flatMap((n) => [n.id, n.name].filter(Boolean)))
-  out = out.replace(/\]\([^)]+\)/g, (m) => `\x00${m}\x00`)
+  const linkGuard = '⟦mdlink⟧'
+  out = out.replace(/\]\([^)]+\)/g, (m) => `${linkGuard}${m}${linkGuard}`)
   out = out.replace(/\[([^\]#|]+)\]/g, (match, text) => {
     const t = text.trim()
-    return nodeNames.has(t) ? `[${text}](${t})` : match
+    if (nodeNames.has(t)) return `[${text}](${t})`
+    const resolved = resolveWikiLinkToNode(t, graphNodes, selectedNode, undefined, null)
+    return resolved ? `[${text}](${resolved.id})` : match
   })
-  out = out.replace(/\x00/g, '')
+  out = out.split(linkGuard).join('')
   return out
 }
 
@@ -60,6 +52,8 @@ function contentWithClickableWikiLinks(rawContent, graphNodes) {
  * @param {string} [props.borderClass] - Clase de borde derecho (contorno)
  * @param {string} [props.borderBottomClass] - Clase de borde inferior (header)
  * @param {string} [props.textClass] - Clase de texto para legibilidad
+ * @param {string} [props.scrollToHeadingSlug] - id del encabezado (slug) al que hacer scroll al cargar
+ * @param {function()} [props.onScrolledToHeading] - Tras hacer scroll al slug, notificar al padre
  * @param {Array<{ title: string, text: string }>} [props.hints] - Hints de Context7 para el nodo
  */
 function NodeContentPanel({
@@ -76,12 +70,33 @@ function NodeContentPanel({
   borderClass = 'border-r-white/90',
   borderBottomClass = 'border-b-white/90',
   textClass = 'text-neutral-200',
+  scrollToHeadingSlug,
+  onScrolledToHeading,
 }) {
   const isOpen = open && node != null
   const processedContent = useMemo(
-    () => contentWithClickableWikiLinks(content, graphNodes),
-    [content, graphNodes]
+    () => contentWithClickableWikiLinks(content, graphNodes, node),
+    [content, graphNodes, node]
   )
+
+  useEffect(() => {
+    if (!scrollToHeadingSlug || loading || !isOpen) return
+    let cancelled = false
+    const tryScroll = (attempt) => {
+      if (cancelled) return
+      const el = document.getElementById(scrollToHeadingSlug)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        onScrolledToHeading?.()
+        return
+      }
+      if (attempt < 6) requestAnimationFrame(() => tryScroll(attempt + 1))
+    }
+    tryScroll(0)
+    return () => {
+      cancelled = true
+    }
+  }, [scrollToHeadingSlug, loading, processedContent, isOpen, onScrolledToHeading])
 
   return (
     <div
@@ -139,13 +154,32 @@ function NodeContentPanel({
               <article className={`MarkdownPanel text-sm opacity-90 [&_h1]:mb-1.5 [&_h1]:text-sm [&_h1]:font-semibold [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h2]:font-semibold [&_p]:mb-1.5 [&_p]:text-xs [&_ul]:list-inside [&_ul]:list-disc [&_ul]:mb-1.5 [&_ul]:text-xs [&_ol]:list-inside [&_ol]:list-decimal [&_ol]:mb-1.5 [&_ol]:text-xs [&_a]:underline [&_a]:cursor-pointer [&_strong]:font-semibold [&_hr]:my-2 [&_hr]:border-current [&_hr]:opacity-50`}>
                 <ReactMarkdown
                   components={{
-                    h1: ({ children, ...props }) => (
-                      <h2 className="mb-1.5 text-sm font-semibold text-neutral-100" {...props}>
-                        {children}
-                      </h2>
-                    ),
+                    h1: ({ children, ...props }) => {
+                      const id = slugifyHeading(plainTextFromChildren(children))
+                      return (
+                        <h2 id={id} className="mb-1.5 text-sm font-semibold text-neutral-100 scroll-mt-2" {...props}>
+                          {children}
+                        </h2>
+                      )
+                    },
+                    h2: ({ children, ...props }) => {
+                      const id = slugifyHeading(plainTextFromChildren(children))
+                      return (
+                        <h2 id={id} className="mb-1.5 mt-3 scroll-mt-2 text-sm font-semibold text-neutral-100" {...props}>
+                          {children}
+                        </h2>
+                      )
+                    },
+                    h3: ({ children, ...props }) => {
+                      const id = slugifyHeading(plainTextFromChildren(children))
+                      return (
+                        <h3 id={id} className="mb-1 mt-2 scroll-mt-2 text-xs font-semibold text-neutral-100" {...props}>
+                          {children}
+                        </h3>
+                      )
+                    },
                     a: ({ href, ...props }) => {
-                      const targetNode = findNodeByLinkHref(href, graphNodes)
+                      const targetNode = findGraphNodeByLinkHref(href, graphNodes, node)
                       const isGraphLink = !!targetNode
                       const handleLinkClick = (e) => {
                         if (isGraphLink) {
